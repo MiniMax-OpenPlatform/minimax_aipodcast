@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 上传和生成的文件
+backend/uploads/*
+backend/outputs/*
+!backend/uploads/.gitkeep
+!backend/outputs/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# 环境变量
+.env
+.env.local
+
+# 会话数据
+backend/outputs/session_*.json
+
