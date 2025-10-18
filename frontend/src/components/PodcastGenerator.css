@@ -25,33 +25,35 @@
 }
 
 /* 输入区域 */
-.input-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.tab {
-  padding: 8px 16px;
-  border: 1px solid #EBEBEB;
-  background: #F7F7F7;
-  border-radius: 8px;
-  cursor: pointer;
+.input-hint {
   font-size: 14px;
   color: #767676;
-  transition: all 0.2s;
-}
-
-.tab.active {
-  background: #FF5A5F;
-  color: white;
-  border-color: #FF5A5F;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #F7F7F7;
+  border-radius: 8px;
+  border-left: 3px solid #FF5A5F;
 }
 
 .input-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #484848;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .input-content textarea,

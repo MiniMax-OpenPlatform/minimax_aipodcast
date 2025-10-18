@@ -190,35 +190,42 @@ const PodcastGenerator = () => {
       {/* 输入内容区 */}
       <div className="section">
         <h2>📝 输入内容</h2>
-        <div className="input-tabs">
-          <button className="tab active">话题文本</button>
-          <button className="tab">网址链接</button>
-          <button className="tab">上传 PDF</button>
-        </div>
+        <p className="input-hint">以下三种输入方式可以单独使用或组合使用：</p>
         <div className="input-content">
-          <textarea
-            placeholder="输入你想讨论的话题..."
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            rows={5}
-          />
-          <input
-            type="text"
-            placeholder="输入网址 URL..."
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-          />
-          <div className="file-upload">
-            <label htmlFor="pdf-upload" className="upload-label">
-              {pdfFile ? `已选择: ${pdfFile.name}` : '点击上传 PDF'}
-            </label>
-            <input
-              id="pdf-upload"
-              type="file"
-              accept=".pdf"
-              onChange={handlePdfChange}
-              style={{ display: 'none' }}
+          <div className="input-group">
+            <label className="input-label">💬 话题文本</label>
+            <textarea
+              placeholder="输入你想讨论的话题..."
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              rows={5}
             />
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">🔗 网址链接</label>
+            <input
+              type="text"
+              placeholder="输入网址 URL..."
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+            />
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">📄 上传 PDF</label>
+            <div className="file-upload">
+              <label htmlFor="pdf-upload" className="upload-label">
+                {pdfFile ? `已选择: ${pdfFile.name}` : '点击选择 PDF 文件'}
+              </label>
+              <input
+                id="pdf-upload"
+                type="file"
+                accept=".pdf"
+                onChange={handlePdfChange}
+                style={{ display: 'none' }}
+              />
+            </div>
           </div>
         </div>
       </div>
