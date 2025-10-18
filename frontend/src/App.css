@@ -1,0 +1,59 @@
+/* App 主样式 - Airbnb 风格 */
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #FFFFFF;
+}
+
+.app-header {
+  background: linear-gradient(135deg, #FF5A5F 0%, #FF385C 100%);
+  color: white;
+  padding: 40px 20px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.app-header h1 {
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.app-header p {
+  font-size: 18px;
+  font-weight: 300;
+  opacity: 0.95;
+}
+
+.app-main {
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.app-footer {
+  background-color: #F7F7F7;
+  color: #767676;
+  text-align: center;
+  padding: 20px;
+  font-size: 14px;
+  border-top: 1px solid #EBEBEB;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .app-header h1 {
+    font-size: 28px;
+  }
+
+  .app-header p {
+    font-size: 16px;
+  }
+
+  .app-main {
+    padding: 20px 15px;
+  }
+}

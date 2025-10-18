@@ -1,0 +1,309 @@
+/* PodcastGenerator 组件样式 - Airbnb 风格 */
+.podcast-generator {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* 通用 Section 样式 */
+.section {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #EBEBEB;
+}
+
+.section h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #484848;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 输入区域 */
+.input-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tab {
+  padding: 8px 16px;
+  border: 1px solid #EBEBEB;
+  background: #F7F7F7;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #767676;
+  transition: all 0.2s;
+}
+
+.tab.active {
+  background: #FF5A5F;
+  color: white;
+  border-color: #FF5A5F;
+}
+
+.input-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.input-content textarea,
+.input-content input[type="text"] {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #EBEBEB;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.input-content textarea:focus,
+.input-content input[type="text"]:focus {
+  outline: none;
+  border-color: #FF5A5F;
+}
+
+/* 文件上传 */
+.file-upload {
+  margin-top: 8px;
+}
+
+.upload-label {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #F7F7F7;
+  border: 1px dashed #EBEBEB;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #767676;
+  transition: all 0.2s;
+}
+
+.upload-label:hover {
+  background: #EBEBEB;
+  border-color: #FF5A5F;
+  color: #FF5A5F;
+}
+
+/* 音色配置 */
+.voice-config {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.speaker-config {
+  padding: 16px;
+  background: #F7F7F7;
+  border-radius: 8px;
+}
+
+.speaker-config h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #484848;
+}
+
+.radio-group {
+  margin-bottom: 12px;
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #484848;
+  cursor: pointer;
+}
+
+.radio-group select {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #EBEBEB;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 100%;
+}
+
+/* 生成按钮 */
+.generate-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, #FF5A5F 0%, #FF385C 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 12px rgba(255, 90, 95, 0.3);
+}
+
+.generate-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 90, 95, 0.4);
+}
+
+.generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 进度条 */
+.progress-bar {
+  background: #F7F7F7;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.progress-text {
+  font-size: 16px;
+  color: #FF5A5F;
+  font-weight: 500;
+}
+
+/* 音频播放器 */
+.player-section {
+  background: linear-gradient(135deg, #F7F7F7 0%, #FFFFFF 100%);
+}
+
+.audio-player {
+  width: 100%;
+  margin-top: 12px;
+}
+
+/* 脚本显示 */
+.script-box {
+  background: #F7F7F7;
+  padding: 16px;
+  border-radius: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.script-box p {
+  margin-bottom: 12px;
+  line-height: 1.6;
+  color: #484848;
+  font-size: 14px;
+}
+
+/* 封面图片 */
+.cover-image {
+  width: 100%;
+  max-width: 400px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-top: 12px;
+}
+
+/* 下载按钮 */
+.download-section {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.download-btn {
+  flex: 1;
+  min-width: 150px;
+  padding: 12px 20px;
+  background: #00A699;
+  color: white;
+  text-align: center;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.download-btn:hover {
+  background: #008C82;
+  transform: translateY(-1px);
+}
+
+/* 日志区域 */
+.logs-section {
+  background: #F7F7F7;
+}
+
+.logs-box {
+  background: #FFFFFF;
+  padding: 16px;
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.logs-box p {
+  margin-bottom: 8px;
+  color: #484848;
+}
+
+.log-time {
+  color: #767676;
+  margin-right: 8px;
+}
+
+/* Trace IDs */
+.trace-ids {
+  background: #F7F7F7;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.trace-ids h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #767676;
+  margin-bottom: 12px;
+}
+
+.trace-ids p {
+  font-size: 12px;
+  color: #767676;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.trace-ids code {
+  background: #FFFFFF;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .voice-config {
+    grid-template-columns: 1fr;
+  }
+
+  .download-section {
+    flex-direction: column;
+  }
+
+  .download-btn {
+    min-width: 100%;
+  }
+}
