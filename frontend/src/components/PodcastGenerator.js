@@ -31,6 +31,9 @@ const PodcastGenerator = () => {
   const audioRef = useRef(null);
   const eventSourceRef = useRef(null);
 
+  // API 基础 URL（从环境变量读取，默认为 localhost）
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
   // 处理文件上传
   const handlePdfChange = (e) => {
     const file = e.target.files[0];
@@ -110,7 +113,7 @@ const PodcastGenerator = () => {
 
     // 建立 SSE 连接
     try {
-      const response = await fetch('http://localhost:5001/api/generate_podcast', {
+      const response = await fetch(`${API_URL}/api/generate_podcast`, {
         method: 'POST',
         body: formData
       });
@@ -372,7 +375,7 @@ const PodcastGenerator = () => {
         <div className="section player-section">
           <h2>🎧 播客播放器</h2>
           <audio ref={audioRef} controls className="audio-player">
-            <source src={`http://localhost:5001${audioUrl}`} type="audio/mpeg" />
+            <source src={`${API_URL}${audioUrl}`} type="audio/mpeg" />
           </audio>
         </div>
       )}
@@ -400,11 +403,11 @@ const PodcastGenerator = () => {
       {/* 下载按钮 */}
       {audioUrl && (
         <div className="download-section">
-          <a href={`http://localhost:5001${audioUrl}`} download className="download-btn">
+          <a href={`${API_URL}${audioUrl}`} download className="download-btn">
             ⬇️ 下载音频
           </a>
           {scriptUrl && (
-            <a href={`http://localhost:5001${scriptUrl}`} download className="download-btn">
+            <a href={`${API_URL}${scriptUrl}`} download className="download-btn">
               ⬇️ 下载脚本
             </a>
           )}
