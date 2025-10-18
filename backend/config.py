@@ -6,11 +6,12 @@
 import os
 
 # ========== API Keys ==========
-# M2 文本模型 API Key
-MINIMAX_TEXT_API_KEY = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJNTembqOmcsiIsIlVzZXJOYW1lIjoiTU3pm6jpnLIiLCJBY2NvdW50IjoiIiwiU3ViamVjdElEIjoiMTg2MjExOTYxNjMwNjc0NTUxNyIsIlBob25lIjoiIiwiR3JvdXBJRCI6IjE4NjIxMTk2MTYzMDI1NTEyMTMiLCJQYWdlTmFtZSI6IiIsIk1haWwiOiJ5dWx1QG1pbmltYXhpLmNvbSIsIkNyZWF0ZVRpbWUiOiIyMDI1LTEwLTA3IDIxOjEyOjMyIiwiVG9rZW5UeXBlIjoxLCJpc3MiOiJtaW5pbWF4In0.gB_fIHCvO_BcSAd2kJbr87n7NAFjWGoWaahAa6fR5i23uZZ2wk6-CBW06UIthAwD3314JzDd-mGemzdLM64geA1nycwrMlAxAV4wCp4s6Dc7e2CPBjxgjyzkbnqLF05xLLHmuheOr0qbafJ4G_vObmeBxmGDuVDwN4fvh4I4SZhPnfmv0CLdW4ZqX8qtbotBudL8NJO7E6wrw-GNWaQ6UZndG3U-11TYvvc-O4ho6RIfEKYIwf7ijg6Apuv1bQWYuTLWNAmvIjAuZSBSIdK-G6yACZ09QESwB3kNWqwigDOmdD2BIhhtd0AbTKrIImp0tURba55wSDv96ZBj0Cm2ew"
+# 统一 API Key（文本、TTS、音色克隆、图像生成都使用同一个）
+MINIMAX_API_KEY = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiIvIiwiVXNlck5hbWUiOiLlhq_pm68iLCJBY2NvdW50IjoiIiwiU3ViamVjdElEIjoiMTY4NjgzMzY3NzA0Njc4MCIsIlBob25lIjoiMTg4MTE0NDU3MjgiLCJHcm91cElEIjoiMTY4NjgzMzY3NzM2NTQ1OSIsIlBhZ2VOYW1lIjoiIiwiTWFpbCI6IjE3ODk5ODExMTNAcXEuY29tIiwiQ3JlYXRlVGltZSI6IjIwMjUtMDItMjEgMTg6MjA6MTciLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.fxmF-4CPd3efpqdJImkuwHC4c6Ig91PJ-HI0Hn_U1gL80mA5Ku_uLXP7xwflpp5DtCf8C1tj48Itdbi_bLoh9gQ0ZHnNpDe_vEQqXBwpVe9CKnqkNeeneVa3lKCRW2iCzAS4CoucTBBq9pDpLZKI7bsXVOq6ONxjaOa4LPkMv7EjLZVzyQcDlKuVKU8_fdiPiWEa0cztILtkTBqYeUJ1sZnh4j0ncuve17ky0-q4m-MyVahLJPJIektp_Rnd95xZYqS2fn0874BSfihMKlT2xaZUhJ_hpYcVw-fSEKzR7T5nOmUDTTKXYHlqn0sLzcetz4AtdJ8zGicVoALqnpVLtA"
 
-# 其他服务 API Key（TTS、音色克隆、图像生成）
-MINIMAX_OTHER_API_KEY = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiIvIiwiVXNlck5hbWUiOiLlhq_pm68iLCJBY2NvdW50IjoiIiwiU3ViamVjdElEIjoiMTY4NjgzMzY3NzA0Njc4MCIsIlBob25lIjoiMTg4MTE0NDU3MjgiLCJHcm91cElEIjoiMTY4NjgzMzY3NzM2NTQ1OSIsIlBhZ2VOYW1lIjoiIiwiTWFpbCI6IjE3ODk5ODExMTNAcXEuY29tIiwiQ3JlYXRlVGltZSI6IjIwMjUtMDItMjEgMTg6MjA6MTciLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.fxmF-4CPd3efpqdJImkuwHC4c6Ig91PJ-HI0Hn_U1gL80mA5Ku_uLXP7xwflpp5DtCf8C1tj48Itdbi_bLoh9gQ0ZHnNpDe_vEQqXBwpVe9CKnqkNeeneVa3lKCRW2iCzAS4CoucTBBq9pDpLZKI7bsXVOq6ONxjaOa4LPkMv7EjLZVzyQcDlKuVKU8_fdiPiWEa0cztILtkTBqYeUJ1sZnh4j0ncuve17ky0-q4m-MyVahLJPJIektp_Rnd95xZYqS2fn0874BSfihMKlT2xaZUhJ_hpYcVw-fSEKzR7T5nOmUDTTKXYHlqn0sLzcetz4AtdJ8zGicVoALqnpVLtA"
+# 保留旧的变量名以兼容现有代码
+MINIMAX_TEXT_API_KEY = MINIMAX_API_KEY
+MINIMAX_OTHER_API_KEY = MINIMAX_API_KEY
 
 # ========== 默认音色配置 ==========
 DEFAULT_VOICES = {
@@ -42,9 +43,9 @@ WELCOME_TEXT = "欢迎收听MiniMax AI播客节目"
 WELCOME_VOICE_ID = DEFAULT_VOICES["mini"]["voice_id"]  # 使用 Mini 音色
 
 # ========== MiniMax API 端点配置 ==========
-MINIMAX_API_BASE = "https://api.minimax.chat"
+MINIMAX_API_BASE = "https://api.minimaxi.com"
 MINIMAX_API_ENDPOINTS = {
-    "text_completion": "https://api.minimax.io/v1/text/chatcompletion_v2",
+    "text_completion": "https://api.minimaxi.com/v1/text/chatcompletion_v2",
     "tts": "https://api.minimaxi.com/v1/t2a_v2",
     "voice_clone": "https://api.minimax.chat/v1/voice_clone",
     "file_upload": "https://api.minimax.chat/v1/files/upload",
@@ -53,7 +54,7 @@ MINIMAX_API_ENDPOINTS = {
 
 # ========== 模型配置 ==========
 MODELS = {
-    "text": "M2-preview-1004",
+    "text": "MiniMax-M1",
     "tts": "speech-2.5-hd-preview",
     "voice_clone": "speech-02-turbo",
     "image": "image-01-live"

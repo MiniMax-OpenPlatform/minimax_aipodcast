@@ -110,7 +110,7 @@ class VoiceManager:
                 "message": "Voice ID 校验通过"
             }
 
-    def clone_custom_voice(self, audio_file_path: str, voice_id: str = None) -> Dict[str, Any]:
+    def clone_custom_voice(self, audio_file_path: str, voice_id: str = None, api_key: str = None) -> Dict[str, Any]:
         """
         克隆自定义音色
 
@@ -163,7 +163,8 @@ class VoiceManager:
         # 调用 MiniMax API 进行音色克隆
         result = minimax_client.clone_voice(
             audio_file_path=audio_file_path,
-            voice_id=voice_id
+            voice_id=voice_id,
+            api_key=api_key
         )
 
         return result
@@ -190,7 +191,7 @@ class VoiceManager:
                 "error": f"未找到默认音色: {speaker_name}"
             }
 
-    def prepare_voices(self, speaker1_config: Dict[str, Any], speaker2_config: Dict[str, Any]) -> Dict[str, Any]:
+    def prepare_voices(self, speaker1_config: Dict[str, Any], speaker2_config: Dict[str, Any], api_key: str = None) -> Dict[str, Any]:
         """
         准备两个 Speaker 的音色
 
@@ -229,7 +230,7 @@ class VoiceManager:
             if not audio_file:
                 return {"success": False, "error": "Speaker1 未提供音频文件", "logs": results["logs"]}
 
-            clone_result = self.clone_custom_voice(audio_file)
+            clone_result = self.clone_custom_voice(audio_file, api_key=api_key)
             if clone_result["success"]:
                 results["speaker1"] = clone_result["voice_id"]
                 results["trace_ids"]["speaker1_upload"] = clone_result.get("upload_trace_id")
@@ -269,7 +270,7 @@ class VoiceManager:
             if not audio_file:
                 return {"success": False, "error": "Speaker2 未提供音频文件", "logs": results["logs"]}
 
-            clone_result = self.clone_custom_voice(audio_file)
+            clone_result = self.clone_custom_voice(audio_file, api_key=api_key)
             if clone_result["success"]:
                 results["speaker2"] = clone_result["voice_id"]
                 results["trace_ids"]["speaker2_upload"] = clone_result.get("upload_trace_id")

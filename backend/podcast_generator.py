@@ -73,7 +73,8 @@ class PodcastGenerator:
                                 content: str,
                                 speaker1_voice_id: str,
                                 speaker2_voice_id: str,
-                                session_id: str) -> Iterator[Dict[str, Any]]:
+                                session_id: str,
+                                api_key: str) -> Iterator[Dict[str, Any]]:
         """
         流式生成播客
 
@@ -82,6 +83,7 @@ class PodcastGenerator:
             speaker1_voice_id: Speaker1 音色 ID
             speaker2_voice_id: Speaker2 音色 ID
             session_id: 会话 ID
+            api_key: 用户提供的 MiniMax API Key
 
         Yields:
             包含各种事件的字典
@@ -113,7 +115,7 @@ class PodcastGenerator:
 
         # 合成欢迎语
         welcome_audio_chunks = []
-        for tts_event in minimax_client.synthesize_speech_stream(self.welcome_text, self.welcome_voice_id):
+        for tts_event in minimax_client.synthesize_speech_stream(self.welcome_text, self.welcome_voice_id, api_key=api_key):
             if tts_event["type"] == "audio_chunk":
                 welcome_audio_chunks.append(tts_event["audio"])
                 yield {
@@ -155,7 +157,8 @@ class PodcastGenerator:
                 for script_event in minimax_client.generate_script_stream(
                     content,
                     PODCAST_CONFIG["target_duration_min"],
-                    PODCAST_CONFIG["target_duration_max"]
+                    PODCAST_CONFIG["target_duration_max"],
+                    api_key=api_key
                 ):
                     if script_event["type"] == "script_chunk":
                         chunk = script_event["content"]
@@ -227,7 +230,7 @@ class PodcastGenerator:
 
             # 流式语音合成
             sentence_audio_chunks = []
-            for tts_event in minimax_client.synthesize_speech_stream(text, voice_id):
+            for tts_event in minimax_client.synthesize_speech_stream(text, voice_id, api_key=api_key):
                 if tts_event["type"] == "audio_chunk":
                     audio_chunk = tts_event["audio"]
                     sentence_audio_chunks.append(audio_chunk)
@@ -286,7 +289,7 @@ class PodcastGenerator:
         # 提取内容摘要（取前500字符）
         content_summary = content[:500] if len(content) > 500 else content
 
-        cover_result = minimax_client.generate_cover_image(content_summary)
+        cover_result = minimax_client.generate_cover_image(content_summary, api_key=api_key)
 
         # 无论成功或失败，都记录 Trace ID
         if cover_result.get("text_trace_id"):

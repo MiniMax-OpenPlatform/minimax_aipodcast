@@ -31,19 +31,26 @@ class MinimaxClient:
         self.endpoints = MINIMAX_API_ENDPOINTS
         self.models = MODELS
 
-    def _get_headers(self, api_type: str = "other") -> Dict[str, str]:
+    def _get_headers(self, api_type: str = "other", api_key: Optional[str] = None) -> Dict[str, str]:
         """
         获取请求头
 
         Args:
             api_type: "text" 或 "other"
+            api_key: 可选的自定义 API Key，如果不提供则使用默认配置
 
         Returns:
             请求头字典
         """
-        api_key = self.text_api_key if api_type == "text" else self.other_api_key
+        if api_key:
+            # 使用用户提供的 API Key
+            key = api_key
+        else:
+            # 使用配置文件中的默认 API Key
+            key = self.text_api_key if api_type == "text" else self.other_api_key
+
         return {
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json"
         }
 
@@ -62,7 +69,7 @@ class MinimaxClient:
             logger.info(f"Trace-ID: {trace_id}")
         return trace_id
 
-    def generate_script_stream(self, content: str, duration_min: int = 3, duration_max: int = 5) -> Iterator[Dict[str, Any]]:
+    def generate_script_stream(self, content: str, duration_min: int = 3, duration_max: int = 5, api_key: Optional[str] = None) -> Iterator[Dict[str, Any]]:
         """
         流式生成播客脚本
 
@@ -70,6 +77,7 @@ class MinimaxClient:
             content: 解析后的内容文本
             duration_min: 目标最短时长（分钟）
             duration_max: 目标最长时长（分钟）
+            api_key: 可选的自定义 API Key
 
         Yields:
             包含脚本 chunk 和 trace_id 的字典
@@ -77,7 +85,7 @@ class MinimaxClient:
         logger.info(f"开始生成播客脚本，内容长度: {len(content)} 字符，目标时长: {duration_min}-{duration_max} 分钟")
 
         url = self.endpoints["text_completion"]
-        headers = self._get_headers("text")
+        headers = self._get_headers("text", api_key=api_key)
 
         # 构建 prompt
         prompt = f"""你是一个专业的播客脚本编写助手。请基于以下材料，生成一段 {duration_min}-{duration_max} 分钟的双人播客对话脚本。
@@ -187,19 +195,20 @@ class MinimaxClient:
                 "trace_id": trace_id
             }
 
-    def synthesize_speech_stream(self, text: str, voice_id: str) -> Iterator[Dict[str, Any]]:
+    def synthesize_speech_stream(self, text: str, voice_id: str, api_key: Optional[str] = None) -> Iterator[Dict[str, Any]]:
         """
         流式语音合成
 
         Args:
             text: 要合成的文本
             voice_id: 音色 ID
+            api_key: 可选的自定义 API Key
 
         Yields:
             包含音频 chunk 和 trace_id 的字典
         """
         url = self.endpoints["tts"]
-        headers = self._get_headers("other")
+        headers = self._get_headers("other", api_key=api_key)
 
         payload = {
             "model": self.models["tts"],
@@ -266,7 +275,7 @@ class MinimaxClient:
                 "trace_id": trace_id
             }
 
-    def clone_voice(self, audio_file_path: str, voice_id: str, sample_text: str = "您好，我是客户经理李娜。") -> Dict[str, Any]:
+    def clone_voice(self, audio_file_path: str, voice_id: str, sample_text: str = "您好，我是客户经理李娜。", api_key: Optional[str] = None) -> Dict[str, Any]:
         """
         音色克隆
 
@@ -274,14 +283,16 @@ class MinimaxClient:
             audio_file_path: 音频文件路径
             voice_id: 自定义音色 ID
             sample_text: 示例文本
+            api_key: 可选的自定义 API Key
 
         Returns:
             包含 voice_id 和 trace_id 的字典
         """
         # Step 1: 上传音频文件
         upload_url = self.endpoints["file_upload"]
+        key_to_use = api_key if api_key else self.other_api_key
         headers_upload = {
-            "Authorization": f"Bearer {self.other_api_key}"
+            "Authorization": f"Bearer {key_to_use}"
         }
 
         try:
@@ -306,7 +317,7 @@ class MinimaxClient:
 
             # Step 2: 调用音色克隆 API
             clone_url = self.endpoints["voice_clone"]
-            headers_clone = self._get_headers("other")
+            headers_clone = self._get_headers("other", api_key=api_key)
 
             payload = {
                 "file_id": file_id,
@@ -342,12 +353,13 @@ class MinimaxClient:
                 "message": f"音色克隆失败: {str(e)}"
             }
 
-    def generate_cover_image(self, content_summary: str) -> Dict[str, Any]:
+    def generate_cover_image(self, content_summary: str, api_key: Optional[str] = None) -> Dict[str, Any]:
         """
         生成播客封面图
 
         Args:
             content_summary: 内容摘要
+            api_key: 可选的自定义 API Key
 
         Returns:
             包含图片 URL 和 trace_id 的字典
@@ -371,7 +383,7 @@ class MinimaxClient:
             # Step 1: 调用 M2 生成 prompt
             logger.info("开始生成封面图 Prompt...")
             url_text = self.endpoints["text_completion"]
-            headers_text = self._get_headers("text")
+            headers_text = self._get_headers("text", api_key=api_key)
 
             payload_text = {
                 "model": self.models["text"],
@@ -408,7 +420,7 @@ class MinimaxClient:
             # Step 2: 调用文生图 API
             logger.info("开始生成封面图...")
             url_image = self.endpoints["image_generation"]
-            headers_image = self._get_headers("other")
+            headers_image = self._get_headers("other", api_key=api_key)
 
             payload_image = {
                 "model": self.models["image"],

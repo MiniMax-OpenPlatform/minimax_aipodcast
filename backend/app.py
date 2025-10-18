@@ -78,6 +78,16 @@ def generate_podcast():
     session_id = str(uuid.uuid4())
     logger.info(f"开始生成播客，Session ID: {session_id}")
 
+    # 提取 API Key
+    user_api_key = request.form.get('api_key', '').strip()
+    if not user_api_key:
+        def error_gen():
+            yield "data: " + json.dumps({
+                "type": "error",
+                "message": "未提供 API Key"
+            }) + "\n\n"
+        return Response(error_gen(), mimetype='text/event-stream')
+
     # 提取表单数据
     text_input = request.form.get('text_input', '').strip()
     url_input = request.form.get('url', '').strip()
@@ -187,7 +197,7 @@ def generate_podcast():
                     return
 
             # 准备音色（可能涉及克隆）
-            voices_result = voice_manager.prepare_voices(speaker1_config, speaker2_config)
+            voices_result = voice_manager.prepare_voices(speaker1_config, speaker2_config, api_key=user_api_key)
 
             if not voices_result["success"]:
                 yield f"data: {json.dumps({'type': 'error', 'message': voices_result['error']})}\n\n"
@@ -210,7 +220,8 @@ def generate_podcast():
                 content=merged_content,
                 speaker1_voice_id=speaker1_voice_id,
                 speaker2_voice_id=speaker2_voice_id,
-                session_id=session_id
+                session_id=session_id,
+                api_key=user_api_key
             ):
                 yield f"data: {json.dumps(event)}\n\n"
 
