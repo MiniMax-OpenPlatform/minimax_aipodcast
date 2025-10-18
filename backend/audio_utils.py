@@ -128,6 +128,11 @@ def hex_to_audio_segment(audio_hex: str) -> AudioSegment:
         audio_bytes = bytes.fromhex(audio_hex)
         logger.info(f"转换音频 hex 数据，长度: {len(audio_bytes)} 字节")
 
+        # 跳过空音频数据
+        if len(audio_bytes) == 0:
+            logger.warning("跳过空音频数据（0 字节）")
+            return None
+
         # 创建临时文件（delete=False，稍后手动删除以便调试）
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
         try:
@@ -218,13 +223,17 @@ def create_podcast_with_bgm(bgm01_path: str, bgm02_path: str,
 
     # 转换欢迎语音频
     welcome_audio = hex_to_audio_segment(welcome_audio_hex)
+    if welcome_audio is None:
+        logger.warning("欢迎语音频为空，使用空音频代替")
+        welcome_audio = AudioSegment.empty()
 
     # 合并对话内容
     dialogue_audio = AudioSegment.empty()
     for chunk_hex in dialogue_audio_chunks:
         try:
             chunk = hex_to_audio_segment(chunk_hex)
-            dialogue_audio += chunk
+            if chunk is not None:  # 跳过空音频
+                dialogue_audio += chunk
         except Exception as e:
             logger.error(f"合并对话 chunk 失败: {str(e)}")
 

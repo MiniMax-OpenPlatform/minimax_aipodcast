@@ -30,8 +30,8 @@ DEFAULT_VOICES = {
 }
 
 # ========== BGM 配置 ==========
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BGM_DIR = "/Users/apple/PycharmProjects/ppn/AB"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BGM_DIR = os.path.join(BASE_DIR, "assets")
 
 BGM_FILES = {
     "bgm01": os.path.join(BGM_DIR, "bgm01.wav"),
