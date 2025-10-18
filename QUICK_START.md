@@ -5,7 +5,9 @@
 - ✅ 后端已成功启动并测试（Flask on localhost:5001）
 - ✅ 所有 Python 模块导入正确
 - ✅ 健康检查接口正常工作
-- ⏳ 前端待启动（React on localhost:3000）
+- ✅ 前端已成功启动（React on localhost:3000）
+- ✅ 前后端连接正常（默认音色接口测试通过）
+- ⏳ 待进行完整播客生成测试
 
 ---
 
@@ -21,6 +23,28 @@ curl http://localhost:5001/health
 {
   "status": "ok",
   "message": "AI 播客生成服务运行中"
+}
+
+# 默认音色接口
+curl http://localhost:5001/api/default-voices
+
+# 响应
+{
+  "success": true,
+  "voices": {
+    "mini": {
+      "name": "Mini",
+      "voice_id": "moss_audio_aaa1346a-7ce7-11f0-8e61-2e6e3c7ee85d",
+      "gender": "female",
+      "description": "女声 - 活泼亲切"
+    },
+    "max": {
+      "name": "Max",
+      "voice_id": "moss_audio_ce44fc67-7ce3-11f0-8de5-96e35d26fb85",
+      "gender": "male",
+      "description": "男声 - 稳重专业"
+    }
+  }
 }
 ```
 
@@ -50,13 +74,13 @@ cd backend
 python3 app.py
 ```
 
-### 步骤 2: 启动前端
+### 步骤 2: 启动前端（已运行）
 
-打开新终端：
+前端已在后台运行于 **http://localhost:3000**
 
+如需重启：
 ```bash
 cd /Users/apple/PycharmProjects/ppn/ai_podcast_v2/frontend
-npm install
 npm start
 ```
 
@@ -102,8 +126,13 @@ https://www.example.com/article
 ### 测试 4: 自定义音色测试
 
 1. 选择"自定义音色"
-2. 上传一段 20 秒左右的音频文件
+2. **上传一段 ≥10 秒的音频文件**（⚠️ 少于 10 秒会自动降级到默认音色）
 3. 观察音色克隆过程和 Trace ID
+
+**注意事项**：
+- 音频文件必须 **至少 10 秒**，否则会因 MiniMax API 限制导致克隆失败
+- 如果音色克隆失败，系统会自动降级使用默认音色（Mini 或 Max）
+- 详细日志会显示失败原因和降级信息
 
 ---
 
@@ -230,4 +259,4 @@ npm install
 
 **当前版本**: V1.0.0 (MVP)
 **最后测试**: 2025-10-18
-**状态**: 后端运行正常 ✅ | 前端待启动 ⏳
+**状态**: 后端运行正常 ✅ | 前端运行正常 ✅ | 待完整测试 ⏳

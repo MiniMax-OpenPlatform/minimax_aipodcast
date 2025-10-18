@@ -4,6 +4,7 @@
 """
 import os
 import logging
+import tempfile
 from pydub import AudioSegment
 from pydub.effects import normalize
 from io import BytesIO
@@ -122,9 +123,23 @@ def hex_to_audio_segment(audio_hex: str) -> AudioSegment:
     Returns:
         AudioSegment 对象
     """
+    # 将 hex 数据写入临时文件，避免 ffmpeg 管道 seek 问题
     audio_bytes = bytes.fromhex(audio_hex)
-    audio_io = BytesIO(audio_bytes)
-    return AudioSegment.from_file(audio_io, format="mp3")
+
+    # 创建临时文件（delete=True 会在文件关闭后自动删除）
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.mp3') as tmp_file:
+        tmp_file.write(audio_bytes)
+        tmp_file.flush()  # 确保数据写入磁盘
+
+        # 从临时文件加载（在文件还打开时加载）
+        audio_segment = AudioSegment.from_file(tmp_file.name, format="mp3")
+
+        # 强制加载完整数据到内存
+        # 通过访问 raw_data 属性确保数据完全加载
+        _ = audio_segment.raw_data
+
+        return audio_segment
+    # tempfile 会在 with 块结束时自动删除
 
 
 def combine_audio_chunks(audio_hex_list: list, output_path: str) -> str:
@@ -222,4 +237,6 @@ def save_audio_chunk_to_file(audio_hex: str, output_path: str) -> str:
     with open(output_path, 'wb') as f:
         f.write(audio_bytes)
     return output_path
+
+
 

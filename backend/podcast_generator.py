@@ -150,38 +150,53 @@ class PodcastGenerator:
         # 脚本生成线程
         def script_generation_thread():
             nonlocal script_buffer
-            for script_event in minimax_client.generate_script_stream(
-                content,
-                PODCAST_CONFIG["target_duration_min"],
-                PODCAST_CONFIG["target_duration_max"]
-            ):
-                if script_event["type"] == "script_chunk":
-                    chunk = script_event["content"]
-                    script_buffer += chunk
+            try:
+                logger.info("脚本生成线程已启动")
+                for script_event in minimax_client.generate_script_stream(
+                    content,
+                    PODCAST_CONFIG["target_duration_min"],
+                    PODCAST_CONFIG["target_duration_max"]
+                ):
+                    if script_event["type"] == "script_chunk":
+                        chunk = script_event["content"]
+                        script_buffer += chunk
 
-                    # 检查是否形成完整句子
-                    while self._is_complete_sentence(script_buffer):
-                        # 提取完整句子
-                        if '\n' in script_buffer:
-                            line, script_buffer = script_buffer.split('\n', 1)
-                        else:
-                            line = script_buffer
-                            script_buffer = ""
+                        # 检查是否形成完整句子
+                        while self._is_complete_sentence(script_buffer):
+                            # 提取完整句子
+                            if '\n' in script_buffer:
+                                line, script_buffer = script_buffer.split('\n', 1)
+                            else:
+                                line = script_buffer
+                                script_buffer = ""
 
-                        if line.strip():
-                            speaker, text = self._parse_speaker_line(line)
+                            if line.strip():
+                                speaker, text = self._parse_speaker_line(line)
+                                if speaker and text:
+                                    sentence_queue.put(("sentence", speaker, text))
+                                    logger.info(f"入队句子: {speaker}: {text[:30]}...")
+
+                    elif script_event["type"] == "script_complete":
+                        # 处理剩余buffer
+                        if script_buffer.strip():
+                            speaker, text = self._parse_speaker_line(script_buffer)
                             if speaker and text:
                                 sentence_queue.put(("sentence", speaker, text))
 
-                elif script_event["type"] == "script_complete":
-                    # 处理剩余buffer
-                    if script_buffer.strip():
-                        speaker, text = self._parse_speaker_line(script_buffer)
-                        if speaker and text:
-                            sentence_queue.put(("sentence", speaker, text))
+                        trace_ids["script_generation"] = script_event.get("trace_id")
+                        logger.info("脚本生成完成，发送完成信号")
+                        sentence_queue.put(("complete", None, None))
 
-                    trace_ids["script_generation"] = script_event.get("trace_id")
-                    sentence_queue.put(("complete", None, None))
+                    elif script_event["type"] == "error":
+                        logger.error(f"脚本生成错误: {script_event.get('message')}")
+                        # 发送错误后仍需要发送完成信号
+                        sentence_queue.put(("complete", None, None))
+
+            except Exception as e:
+                logger.error(f"脚本生成线程异常: {str(e)}")
+                logger.exception("详细错误:")
+                # 确保发送完成信号，避免主线程永久阻塞
+                sentence_queue.put(("complete", None, None))
 
         # 启动脚本生成线程
         script_thread = threading.Thread(target=script_generation_thread)
@@ -234,6 +249,18 @@ class PodcastGenerator:
                         "trace_id": trace_id
                     }
 
+                elif tts_event["type"] == "error":
+                    # TTS 错误，也记录 Trace ID
+                    if tts_event.get("trace_id"):
+                        trace_ids[f"tts_sentence_{tts_sentence_count}_error"] = tts_event.get("trace_id")
+                        yield {
+                            "type": "trace_id",
+                            "api": f"{speaker} 第 {tts_sentence_count} 句合成（失败）",
+                            "trace_id": tts_event.get("trace_id")
+                        }
+                    # 转发错误事件
+                    yield tts_event
+
         # 等待脚本生成线程完成
         script_thread.join()
 
@@ -261,23 +288,28 @@ class PodcastGenerator:
 
         cover_result = minimax_client.generate_cover_image(content_summary)
 
-        if cover_result["success"]:
-            yield {
-                "type": "cover_image",
-                "image_url": cover_result["image_url"],
-                "prompt": cover_result["prompt"]
-            }
+        # 无论成功或失败，都记录 Trace ID
+        if cover_result.get("text_trace_id"):
             trace_ids["cover_prompt_generation"] = cover_result.get("text_trace_id")
-            trace_ids["cover_image_generation"] = cover_result.get("image_trace_id")
             yield {
                 "type": "trace_id",
                 "api": "封面 Prompt 生成",
                 "trace_id": cover_result.get("text_trace_id")
             }
+
+        if cover_result.get("image_trace_id"):
+            trace_ids["cover_image_generation"] = cover_result.get("image_trace_id")
             yield {
                 "type": "trace_id",
                 "api": "封面图生成",
                 "trace_id": cover_result.get("image_trace_id")
+            }
+
+        if cover_result["success"]:
+            yield {
+                "type": "cover_image",
+                "image_url": cover_result["image_url"],
+                "prompt": cover_result["prompt"]
             }
         else:
             yield {

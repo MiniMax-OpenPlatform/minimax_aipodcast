@@ -52,3 +52,17 @@ backend/outputs/*
 # 会话数据
 backend/outputs/session_*.json
 
+# Node.js / React
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+package-lock.json
+frontend/package-lock.json
+

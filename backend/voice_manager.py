@@ -7,6 +7,7 @@ import random
 import string
 import logging
 from typing import Dict, Any
+from pydub import AudioSegment
 from config import VOICE_ID_CONFIG, DEFAULT_VOICES
 from minimax_client import minimax_client
 
@@ -120,6 +121,32 @@ class VoiceManager:
         Returns:
             包含 voice_id 和 trace_id 的结果字典
         """
+        # 检查音频文件时长（必须 >= 10 秒）
+        try:
+            audio = AudioSegment.from_file(audio_file_path)
+            duration_seconds = len(audio) / 1000.0
+
+            logger.info(f"音频文件时长: {duration_seconds:.2f} 秒")
+
+            if duration_seconds < 10:
+                error_msg = f"音频时长不足 10 秒（当前 {duration_seconds:.2f} 秒），音色克隆需要至少 10 秒的音频"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "message": error_msg,
+                    "duration": duration_seconds
+                }
+
+        except Exception as e:
+            error_msg = f"无法读取音频文件: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "message": error_msg
+            }
+
         # 生成或校验 Voice ID
         if voice_id is None:
             voice_id = self.generate_voice_id()
@@ -200,17 +227,31 @@ class VoiceManager:
         elif speaker1_config["type"] == "custom":
             audio_file = speaker1_config.get("audio_file")
             if not audio_file:
-                return {"success": False, "error": "Speaker1 未提供音频文件"}
+                return {"success": False, "error": "Speaker1 未提供音频文件", "logs": results["logs"]}
 
             clone_result = self.clone_custom_voice(audio_file)
             if clone_result["success"]:
                 results["speaker1"] = clone_result["voice_id"]
                 results["trace_ids"]["speaker1_upload"] = clone_result.get("upload_trace_id")
                 results["trace_ids"]["speaker1_clone"] = clone_result.get("clone_trace_id")
-                results["logs"].append(f"Speaker1 音色克隆成功: {clone_result['voice_id']}")
+                results["logs"].append(f"✅ Speaker1 音色克隆成功: {clone_result['voice_id']}")
             else:
-                results["logs"].append(f"错误: Speaker1 音色克隆失败 - {clone_result.get('error')}")
-                return {"success": False, "error": clone_result.get('error')}
+                # 音色克隆失败，记录详细错误，并使用默认音色作为降级方案
+                error_detail = clone_result.get('error', '未知错误')
+                results["logs"].append(f"❌ Speaker1 音色克隆失败: {error_detail}")
+
+                # 如果是时长不足的错误，提供更明确的提示
+                if 'duration' in clone_result:
+                    results["logs"].append(f"⚠️  音频时长仅 {clone_result['duration']:.2f} 秒，需要至少 10 秒")
+
+                results["logs"].append(f"⚠️  降级使用默认音色 Mini（女声）")
+
+                # 降级到默认音色
+                voice_info = self.get_default_voice("mini")
+                if voice_info["success"]:
+                    results["speaker1"] = voice_info["voice"]["voice_id"]
+                else:
+                    return {"success": False, "error": "无法使用默认音色作为降级方案", "logs": results["logs"]}
 
         # 准备 Speaker2 音色
         if speaker2_config["type"] == "default":
@@ -226,17 +267,31 @@ class VoiceManager:
         elif speaker2_config["type"] == "custom":
             audio_file = speaker2_config.get("audio_file")
             if not audio_file:
-                return {"success": False, "error": "Speaker2 未提供音频文件"}
+                return {"success": False, "error": "Speaker2 未提供音频文件", "logs": results["logs"]}
 
             clone_result = self.clone_custom_voice(audio_file)
             if clone_result["success"]:
                 results["speaker2"] = clone_result["voice_id"]
                 results["trace_ids"]["speaker2_upload"] = clone_result.get("upload_trace_id")
                 results["trace_ids"]["speaker2_clone"] = clone_result.get("clone_trace_id")
-                results["logs"].append(f"Speaker2 音色克隆成功: {clone_result['voice_id']}")
+                results["logs"].append(f"✅ Speaker2 音色克隆成功: {clone_result['voice_id']}")
             else:
-                results["logs"].append(f"错误: Speaker2 音色克隆失败 - {clone_result.get('error')}")
-                return {"success": False, "error": clone_result.get('error')}
+                # 音色克隆失败，记录详细错误，并使用默认音色作为降级方案
+                error_detail = clone_result.get('error', '未知错误')
+                results["logs"].append(f"❌ Speaker2 音色克隆失败: {error_detail}")
+
+                # 如果是时长不足的错误，提供更明确的提示
+                if 'duration' in clone_result:
+                    results["logs"].append(f"⚠️  音频时长仅 {clone_result['duration']:.2f} 秒，需要至少 10 秒")
+
+                results["logs"].append(f"⚠️  降级使用默认音色 Max（男声）")
+
+                # 降级到默认音色
+                voice_info = self.get_default_voice("max")
+                if voice_info["success"]:
+                    results["speaker2"] = voice_info["voice"]["voice_id"]
+                else:
+                    return {"success": False, "error": "无法使用默认音色作为降级方案", "logs": results["logs"]}
 
         results["success"] = True
         return results

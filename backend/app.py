@@ -48,6 +48,16 @@ def health_check():
     return jsonify({"status": "ok", "message": "AI 播客生成服务运行中"})
 
 
+@app.route('/api/default-voices', methods=['GET'])
+def get_default_voices():
+    """获取默认音色列表"""
+    from config import DEFAULT_VOICES
+    return jsonify({
+        "success": True,
+        "voices": DEFAULT_VOICES
+    })
+
+
 @app.route('/api/generate_podcast', methods=['POST'])
 def generate_podcast():
     """
@@ -64,44 +74,72 @@ def generate_podcast():
     - speaker2_voice_name: "mini" 或 "max"（default 时）
     - speaker2_audio: 音频文件（custom 时）
     """
+    # 在请求上下文中提取所有数据
+    session_id = str(uuid.uuid4())
+    logger.info(f"开始生成播客，Session ID: {session_id}")
+
+    # 提取表单数据
+    text_input = request.form.get('text_input', '').strip()
+    url_input = request.form.get('url', '').strip()
+
+    # 提取 PDF 文件
+    pdf_file = None
+    pdf_path = None
+    if 'pdf_file' in request.files:
+        pdf_file_obj = request.files['pdf_file']
+        if pdf_file_obj and allowed_file(pdf_file_obj.filename, ALLOWED_PDF_EXTENSIONS):
+            filename = secure_filename(pdf_file_obj.filename)
+            pdf_path = os.path.join(UPLOAD_DIR, f"{session_id}_{filename}")
+            pdf_file_obj.save(pdf_path)
+            pdf_file = filename
+
+    # 提取音色配置
+    speaker1_type = request.form.get('speaker1_type', 'default')
+    speaker1_voice_name = request.form.get('speaker1_voice_name', 'mini')
+    speaker1_audio_path = None
+    if speaker1_type == 'custom' and 'speaker1_audio' in request.files:
+        audio_file = request.files['speaker1_audio']
+        if audio_file and allowed_file(audio_file.filename, ALLOWED_AUDIO_EXTENSIONS):
+            filename = secure_filename(audio_file.filename)
+            speaker1_audio_path = os.path.join(UPLOAD_DIR, f"{session_id}_speaker1_{filename}")
+            audio_file.save(speaker1_audio_path)
+
+    speaker2_type = request.form.get('speaker2_type', 'default')
+    speaker2_voice_name = request.form.get('speaker2_voice_name', 'max')
+    speaker2_audio_path = None
+    if speaker2_type == 'custom' and 'speaker2_audio' in request.files:
+        audio_file = request.files['speaker2_audio']
+        if audio_file and allowed_file(audio_file.filename, ALLOWED_AUDIO_EXTENSIONS):
+            filename = secure_filename(audio_file.filename)
+            speaker2_audio_path = os.path.join(UPLOAD_DIR, f"{session_id}_speaker2_{filename}")
+            audio_file.save(speaker2_audio_path)
+
     def generate():
         """SSE 生成器"""
-        session_id = str(uuid.uuid4())
-        logger.info(f"开始生成播客，Session ID: {session_id}")
-
         try:
             # Step 1: 解析输入内容
             yield f"data: {json.dumps({'type': 'progress', 'step': 'parsing_content', 'message': '正在解析输入内容...'})}\n\n"
 
-            text_input = request.form.get('text_input', '').strip()
-            url = request.form.get('url', '').strip()
-
             # 处理 PDF 文件
             pdf_content = ""
-            if 'pdf_file' in request.files:
-                pdf_file = request.files['pdf_file']
-                if pdf_file and allowed_file(pdf_file.filename, ALLOWED_PDF_EXTENSIONS):
-                    filename = secure_filename(pdf_file.filename)
-                    pdf_path = os.path.join(UPLOAD_DIR, f"{session_id}_{filename}")
-                    pdf_file.save(pdf_path)
+            if pdf_path:
+                yield f"data: {json.dumps({'type': 'log', 'message': f'已上传 PDF: {pdf_file}'})}\n\n"
 
-                    yield f"data: {json.dumps({'type': 'log', 'message': f'已上传 PDF: {filename}'})}\n\n"
-
-                    pdf_result = content_parser.parse_pdf(pdf_path)
-                    if pdf_result["success"]:
-                        pdf_content = pdf_result["content"]
-                        for log in pdf_result["logs"]:
-                            yield f"data: {json.dumps({'type': 'log', 'message': log})}\n\n"
-                    else:
-                        yield f"data: {json.dumps({'type': 'error', 'message': pdf_result['error']})}\n\n"
-                        return
+                pdf_result = content_parser.parse_pdf(pdf_path)
+                if pdf_result["success"]:
+                    pdf_content = pdf_result["content"]
+                    for log in pdf_result["logs"]:
+                        yield f"data: {json.dumps({'type': 'log', 'message': log})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'error', 'message': pdf_result['error']})}\n\n"
+                    return
 
             # 解析网址（如果提供）
             url_content = ""
-            if url:
-                yield f"data: {json.dumps({'type': 'log', 'message': f'开始解析网址: {url}'})}\n\n"
+            if url_input:
+                yield f"data: {json.dumps({'type': 'log', 'message': f'开始解析网址: {url_input}'})}\n\n"
 
-                url_result = content_parser.parse_url(url)
+                url_result = content_parser.parse_url(url_input)
                 if url_result["success"]:
                     url_content = url_result["content"]
                     for log in url_result["logs"]:
@@ -123,45 +161,27 @@ def generate_podcast():
             yield f"data: {json.dumps({'type': 'progress', 'step': 'preparing_voices', 'message': '正在准备音色...'})}\n\n"
 
             # Speaker1 配置
-            speaker1_type = request.form.get('speaker1_type', 'default')
             speaker1_config = {"type": speaker1_type}
 
             if speaker1_type == 'default':
-                speaker1_config["voice_name"] = request.form.get('speaker1_voice_name', 'mini')
+                speaker1_config["voice_name"] = speaker1_voice_name
             elif speaker1_type == 'custom':
-                if 'speaker1_audio' in request.files:
-                    audio_file = request.files['speaker1_audio']
-                    if audio_file and allowed_file(audio_file.filename, ALLOWED_AUDIO_EXTENSIONS):
-                        filename = secure_filename(audio_file.filename)
-                        audio_path = os.path.join(UPLOAD_DIR, f"{session_id}_s1_{filename}")
-                        audio_file.save(audio_path)
-                        speaker1_config["audio_file"] = audio_path
-                        yield f"data: {json.dumps({'type': 'log', 'message': f'Speaker1 音频已上传: {filename}'})}\n\n"
-                    else:
-                        yield f"data: {json.dumps({'type': 'error', 'message': 'Speaker1 音频文件格式不支持'})}\n\n"
-                        return
+                if speaker1_audio_path:
+                    speaker1_config["audio_file"] = speaker1_audio_path
+                    yield f"data: {json.dumps({'type': 'log', 'message': 'Speaker1 音频已上传'})}\n\n"
                 else:
                     yield f"data: {json.dumps({'type': 'error', 'message': 'Speaker1 选择自定义音色但未上传音频文件'})}\n\n"
                     return
 
             # Speaker2 配置
-            speaker2_type = request.form.get('speaker2_type', 'default')
             speaker2_config = {"type": speaker2_type}
 
             if speaker2_type == 'default':
-                speaker2_config["voice_name"] = request.form.get('speaker2_voice_name', 'max')
+                speaker2_config["voice_name"] = speaker2_voice_name
             elif speaker2_type == 'custom':
-                if 'speaker2_audio' in request.files:
-                    audio_file = request.files['speaker2_audio']
-                    if audio_file and allowed_file(audio_file.filename, ALLOWED_AUDIO_EXTENSIONS):
-                        filename = secure_filename(audio_file.filename)
-                        audio_path = os.path.join(UPLOAD_DIR, f"{session_id}_s2_{filename}")
-                        audio_file.save(audio_path)
-                        speaker2_config["audio_file"] = audio_path
-                        yield f"data: {json.dumps({'type': 'log', 'message': f'Speaker2 音频已上传: {filename}'})}\n\n"
-                    else:
-                        yield f"data: {json.dumps({'type': 'error', 'message': 'Speaker2 音频文件格式不支持'})}\n\n"
-                        return
+                if speaker2_audio_path:
+                    speaker2_config["audio_file"] = speaker2_audio_path
+                    yield f"data: {json.dumps({'type': 'log', 'message': 'Speaker2 音频已上传'})}\n\n"
                 else:
                     yield f"data: {json.dumps({'type': 'error', 'message': 'Speaker2 选择自定义音色但未上传音频文件'})}\n\n"
                     return

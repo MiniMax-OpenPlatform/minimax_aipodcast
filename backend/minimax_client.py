@@ -74,6 +74,8 @@ class MinimaxClient:
         Yields:
             包含脚本 chunk 和 trace_id 的字典
         """
+        logger.info(f"开始生成播客脚本，内容长度: {len(content)} 字符，目标时长: {duration_min}-{duration_max} 分钟")
+
         url = self.endpoints["text_completion"]
         headers = self._get_headers("text")
 
@@ -102,6 +104,10 @@ class MinimaxClient:
             "stream": True
         }
 
+        logger.info(f"发送脚本生成请求到: {url}")
+        logger.info(f"请求模型: {self.models['text']}")
+
+        trace_id = None
         try:
             response = requests.post(
                 url,
@@ -110,12 +116,18 @@ class MinimaxClient:
                 stream=True,
                 timeout=TIMEOUTS["script_generation"]
             )
-            response.raise_for_status()
 
-            # 提取 Trace ID
+            # 立即提取 Trace ID（即使失败也要记录）
             trace_id = self._extract_trace_id(response)
 
+            logger.info(f"脚本生成响应状态码: {response.status_code}")
+
+            response.raise_for_status()
+
+            logger.info("开始流式读取脚本内容...")
+
             # 流式读取响应
+            chunk_count = 0
             for line in response.iter_lines():
                 if line:
                     line = line.decode('utf-8')
@@ -126,13 +138,19 @@ class MinimaxClient:
                                 delta = data['choices'][0].get('delta', {})
                                 content_chunk = delta.get('content', '')
                                 if content_chunk:
+                                    chunk_count += 1
+                                    if chunk_count % 10 == 0:
+                                        logger.info(f"已接收 {chunk_count} 个脚本 chunk")
                                     yield {
                                         "type": "script_chunk",
                                         "content": content_chunk,
                                         "trace_id": trace_id
                                     }
-                        except json.JSONDecodeError:
+                        except json.JSONDecodeError as je:
+                            logger.warning(f"JSON 解析失败: {line[:100]}")
                             continue
+
+            logger.info(f"脚本生成完成，共接收 {chunk_count} 个 chunk")
 
             # 完成信号
             yield {
@@ -140,11 +158,33 @@ class MinimaxClient:
                 "trace_id": trace_id
             }
 
-        except Exception as e:
-            logger.error(f"Script generation error: {str(e)}")
+        except requests.exceptions.Timeout:
+            error_msg = f"脚本生成超时（{TIMEOUTS['script_generation']}秒）"
+            logger.error(error_msg)
             yield {
                 "type": "error",
-                "message": f"脚本生成失败: {str(e)}"
+                "message": error_msg,
+                "trace_id": trace_id
+            }
+        except requests.exceptions.RequestException as e:
+            error_msg = f"脚本生成网络请求失败: {str(e)}"
+            logger.error(error_msg)
+            # 尝试从异常中提取 Trace ID
+            if trace_id is None and hasattr(e, 'response') and e.response is not None:
+                trace_id = self._extract_trace_id(e.response)
+            yield {
+                "type": "error",
+                "message": error_msg,
+                "trace_id": trace_id
+            }
+        except Exception as e:
+            error_msg = f"脚本生成失败: {str(e)}"
+            logger.error(error_msg)
+            logger.exception("详细错误信息:")
+            yield {
+                "type": "error",
+                "message": error_msg,
+                "trace_id": trace_id
             }
 
     def synthesize_speech_stream(self, text: str, voice_id: str) -> Iterator[Dict[str, Any]]:
@@ -175,6 +215,7 @@ class MinimaxClient:
             "subtitle_enable": False
         }
 
+        trace_id = None
         try:
             response = requests.post(
                 url,
@@ -183,10 +224,11 @@ class MinimaxClient:
                 stream=True,
                 timeout=TIMEOUTS["tts_per_sentence"]
             )
-            response.raise_for_status()
 
-            # 提取 Trace ID
+            # 立即提取 Trace ID（即使失败也要记录）
             trace_id = self._extract_trace_id(response)
+
+            response.raise_for_status()
 
             # 流式读取音频 chunk
             for line in response.iter_lines():
@@ -214,9 +256,14 @@ class MinimaxClient:
 
         except Exception as e:
             logger.error(f"TTS error: {str(e)}")
+            # 尝试从异常中提取 Trace ID
+            if trace_id is None and hasattr(e, 'response') and e.response is not None:
+                trace_id = self._extract_trace_id(e.response)
+
             yield {
                 "type": "error",
-                "message": f"语音合成失败: {str(e)}"
+                "message": f"语音合成失败: {str(e)}",
+                "trace_id": trace_id
             }
 
     def clone_voice(self, audio_file_path: str, voice_id: str, sample_text: str = "您好，我是客户经理李娜。") -> Dict[str, Any]:
@@ -319,8 +366,10 @@ class MinimaxClient:
 
 请直接输出图片描述 prompt（不要有多余说明）："""
 
+        text_trace_id = None
         try:
-            # 调用 M2 生成 prompt
+            # Step 1: 调用 M2 生成 prompt
+            logger.info("开始生成封面图 Prompt...")
             url_text = self.endpoints["text_completion"]
             headers_text = self._get_headers("text")
 
@@ -333,35 +382,49 @@ class MinimaxClient:
                 "stream": False
             }
 
+            logger.info(f"发送 Prompt 生成请求到: {url_text}")
             response_text = requests.post(
                 url_text,
                 headers=headers_text,
                 json=payload_text,
                 timeout=30
             )
-            response_text.raise_for_status()
+
+            # 立即提取 Trace ID
             text_trace_id = self._extract_trace_id(response_text)
+            logger.info(f"Prompt 生成响应状态码: {response_text.status_code}")
+
+            response_text.raise_for_status()
 
             text_result = response_text.json()
             image_prompt = text_result.get("choices", [{}])[0].get("message", {}).get("content", "")
 
+            logger.info(f"生成的图片 Prompt: {image_prompt}")
+
             if not image_prompt:
                 image_prompt = "一男一女两个人坐在播客录音室里，漫画风格"
+                logger.info(f"使用默认 Prompt: {image_prompt}")
 
             # Step 2: 调用文生图 API
+            logger.info("开始生成封面图...")
             url_image = self.endpoints["image_generation"]
             headers_image = self._get_headers("other")
 
             payload_image = {
                 "model": self.models["image"],
                 "prompt": image_prompt,
-                "style_type": IMAGE_GENERATION_CONFIG["style_type"],
-                "style_weight": IMAGE_GENERATION_CONFIG["style_weight"],
                 "aspect_ratio": IMAGE_GENERATION_CONFIG["aspect_ratio"],
-                "prompt_optimizer": IMAGE_GENERATION_CONFIG["prompt_optimizer"],
+                "response_format": "url",
                 "n": IMAGE_GENERATION_CONFIG["n"],
-                "response_format": "url"
+                "prompt_optimizer": IMAGE_GENERATION_CONFIG["prompt_optimizer"],
+                "style": {
+                    "style_type": IMAGE_GENERATION_CONFIG["style_type"],
+                    "style_weight": IMAGE_GENERATION_CONFIG["style_weight"]
+                }
             }
+
+            logger.info(f"图像生成 API: {url_image}")
+            logger.info(f"图像生成请求 payload: {payload_image}")
 
             response_image = requests.post(
                 url_image,
@@ -369,11 +432,59 @@ class MinimaxClient:
                 json=payload_image,
                 timeout=TIMEOUTS["image_generation"]
             )
-            response_image.raise_for_status()
+
+            # 立即提取 Trace ID（即使请求失败也要记录）
             image_trace_id = self._extract_trace_id(response_image)
 
+            logger.info(f"图像生成响应状态码: {response_image.status_code}")
+            logger.info(f"图像生成响应内容前500字符: {response_image.text[:500]}")
+
+            response_image.raise_for_status()
+            logger.info("图像生成请求状态检查通过")
+
             image_result = response_image.json()
-            image_url = image_result.get("data", [{}])[0].get("url", "")
+
+            logger.info(f"图像生成完整响应: {image_result}")
+
+            # 检查 base_resp.status_code
+            base_resp = image_result.get("base_resp", {})
+            if base_resp.get("status_code") != 0:
+                error_msg = base_resp.get("status_msg", "未知错误")
+                logger.error(f"API 返回错误状态: status_code={base_resp.get('status_code')}, msg={error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "message": f"封面生成失败: {error_msg}",
+                    "text_trace_id": text_trace_id,
+                    "image_trace_id": image_trace_id
+                }
+
+            # 检查是否有 data 字段和 image_urls
+            data = image_result.get("data", {})
+            if not data or "image_urls" not in data:
+                logger.error(f"API 响应缺少 data.image_urls 字段: {image_result}")
+                return {
+                    "success": False,
+                    "error": f"API 响应格式错误，缺少 image_urls",
+                    "message": f"封面生成失败: API 响应格式错误",
+                    "text_trace_id": text_trace_id,
+                    "image_trace_id": image_trace_id
+                }
+
+            # 获取第一张图片 URL
+            image_urls = data.get("image_urls", [])
+            if not image_urls or len(image_urls) == 0:
+                logger.error(f"API 返回的 image_urls 为空: {image_result}")
+                return {
+                    "success": False,
+                    "error": "图片生成失败，image_urls 为空",
+                    "message": "封面生成失败: 未返回图片 URL",
+                    "text_trace_id": text_trace_id,
+                    "image_trace_id": image_trace_id
+                }
+
+            image_url = image_urls[0]
+            logger.info(f"成功获取封面图 URL: {image_url}")
 
             return {
                 "success": True,
@@ -384,12 +495,31 @@ class MinimaxClient:
                 "message": "封面生成成功"
             }
 
-        except Exception as e:
-            logger.error(f"Cover image generation error: {str(e)}")
+        except requests.exceptions.RequestException as e:
+            error_msg = f"网络请求失败: {str(e)}"
+            logger.error(f"Cover image generation error: {error_msg}")
+
+            # 尝试从异常中提取 response 对象
+            image_trace_id = None
+            if hasattr(e, 'response') and e.response is not None:
+                image_trace_id = self._extract_trace_id(e.response)
+
             return {
                 "success": False,
-                "error": str(e),
-                "message": f"封面生成失败: {str(e)}"
+                "error": error_msg,
+                "message": f"封面生成失败: {error_msg}",
+                "text_trace_id": text_trace_id if 'text_trace_id' in locals() else None,
+                "image_trace_id": image_trace_id
+            }
+        except Exception as e:
+            error_msg = str(e) if str(e) else "未知错误"
+            logger.error(f"Cover image generation error: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "message": f"封面生成失败: {error_msg}",
+                "text_trace_id": text_trace_id if 'text_trace_id' in locals() else None,
+                "image_trace_id": None
             }
 
 
