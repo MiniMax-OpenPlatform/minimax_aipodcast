@@ -7,7 +7,7 @@ import requests
 import json
 import logging
 from typing import Iterator, Dict, Any, Optional
-from backend.config import (
+from config import (
     MINIMAX_TEXT_API_KEY,
     MINIMAX_OTHER_API_KEY,
     MINIMAX_API_ENDPOINTS,

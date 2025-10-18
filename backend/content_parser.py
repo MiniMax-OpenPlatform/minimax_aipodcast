@@ -8,7 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 from PyPDF2 import PdfReader
 from typing import Dict, Any
-from backend.config import TIMEOUTS
+from config import TIMEOUTS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -9,17 +9,17 @@ import logging
 import threading
 from typing import Dict, Any, Iterator
 from queue import Queue
-from backend.config import (
+from config import (
     BGM_FILES,
     WELCOME_TEXT,
     WELCOME_VOICE_ID,
     PODCAST_CONFIG,
     OUTPUT_DIR
 )
-from backend.minimax_client import minimax_client
-from backend.content_parser import content_parser
-from backend.voice_manager import voice_manager
-from backend.audio_utils import create_podcast_with_bgm
+from minimax_client import minimax_client
+from content_parser import content_parser
+from voice_manager import voice_manager
+from audio_utils import create_podcast_with_bgm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

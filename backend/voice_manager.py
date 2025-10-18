@@ -7,8 +7,8 @@ import random
 import string
 import logging
 from typing import Dict, Any
-from backend.config import VOICE_ID_CONFIG, DEFAULT_VOICES
-from backend.minimax_client import minimax_client
+from config import VOICE_ID_CONFIG, DEFAULT_VOICES
+from minimax_client import minimax_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
