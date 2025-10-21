@@ -43,9 +43,16 @@ class ContentParser:
                 'Sec-Fetch-Mode': 'navigate',
                 'Sec-Fetch-Site': 'none',
                 'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0'
+                'Cache-Control': 'max-age=0',
+                'Referer': 'https://www.google.com/',  # 添加 Referer，伪装成从搜索引擎来的
+                'DNT': '1'
             }
-            response = requests.get(url, headers=headers, timeout=TIMEOUTS["url_parsing"], allow_redirects=True)
+
+            # 创建 session 以保持 cookies
+            session = requests.Session()
+            session.headers.update(headers)
+
+            response = session.get(url, timeout=TIMEOUTS["url_parsing"], allow_redirects=True)
             response.raise_for_status()
             response.encoding = response.apparent_encoding
 
