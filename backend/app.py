@@ -301,4 +301,5 @@ if __name__ == '__main__':
     logger.info(f"📁 上传目录: {UPLOAD_DIR}")
     logger.info(f"📁 输出目录: {OUTPUT_DIR}")
     logger.info("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)
+    # 生产环境关闭 debug 模式，避免自动重启导致 SSE 连接中断
+    app.run(debug=False, host='0.0.0.0', port=5001, threaded=True)

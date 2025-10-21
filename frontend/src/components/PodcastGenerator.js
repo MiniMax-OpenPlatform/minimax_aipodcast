@@ -120,23 +120,47 @@ const PodcastGenerator = () => {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = ''; // 用于累积不完整的行
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        // 将新数据追加到缓冲区
+        buffer += decoder.decode(value, { stream: true });
+
+        // 按行分割，但保留最后一个可能不完整的行
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // 保存最后一个不完整的行
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          const trimmedLine = line.trim();
+          if (trimmedLine.startsWith('data: ')) {
+            const jsonStr = trimmedLine.substring(6);
+            // 跳过空的 data 行
+            if (!jsonStr.trim()) continue;
+
             try {
-              const data = JSON.parse(line.substring(6));
+              const data = JSON.parse(jsonStr);
               handleSSEEvent(data);
             } catch (e) {
               console.error('解析 SSE 数据失败:', e);
+              console.error('问题行长度:', jsonStr.length);
+              console.error('问题行开头:', jsonStr.substring(0, 100));
+              console.error('问题行结尾:', jsonStr.substring(Math.max(0, jsonStr.length - 100)));
+              // 不中断流程，继续处理其他事件
             }
           }
+        }
+      }
+
+      // 处理缓冲区中剩余的数据
+      if (buffer.trim() && buffer.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(buffer.substring(6));
+          handleSSEEvent(data);
+        } catch (e) {
+          console.error('解析最后一行 SSE 数据失败:', e);
         }
       }
     } catch (error) {
@@ -174,6 +198,11 @@ const PodcastGenerator = () => {
       case 'audio_chunk':
         // 这里可以实现流式音频播放
         // 暂时跳过，等待complete事件获取完整音频
+        break;
+
+      case 'bgm':
+      case 'welcome_audio_chunk':
+        // BGM 和欢迎语音频事件，前端不需要处理
         break;
 
       case 'complete':

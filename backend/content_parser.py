@@ -31,11 +31,21 @@ class ContentParser:
         logs.append(f"开始解析网址: {url}")
 
         try:
-            # 发送 HTTP 请求
+            # 发送 HTTP 请求，使用更真实的浏览器请求头
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0'
             }
-            response = requests.get(url, headers=headers, timeout=TIMEOUTS["url_parsing"])
+            response = requests.get(url, headers=headers, timeout=TIMEOUTS["url_parsing"], allow_redirects=True)
             response.raise_for_status()
             response.encoding = response.apparent_encoding
 

@@ -118,10 +118,7 @@ class PodcastGenerator:
         for tts_event in minimax_client.synthesize_speech_stream(self.welcome_text, self.welcome_voice_id, api_key=api_key):
             if tts_event["type"] == "audio_chunk":
                 welcome_audio_chunks.append(tts_event["audio"])
-                yield {
-                    "type": "welcome_audio_chunk",
-                    "audio": tts_event["audio"]
-                }
+                # 不发送 audio chunk 到前端（数据太大，前端不需要）
             elif tts_event["type"] == "tts_complete":
                 trace_ids["welcome_tts"] = tts_event.get("trace_id")
                 yield {
@@ -236,12 +233,8 @@ class PodcastGenerator:
                     sentence_audio_chunks.append(audio_chunk)
                     all_audio_chunks.append(audio_chunk)
 
-                    # 实时推送音频 chunk 到前端
-                    yield {
-                        "type": "audio_chunk",
-                        "speaker": speaker,
-                        "audio": audio_chunk
-                    }
+                    # 不发送 audio_chunk 到前端（数据太大，前端也不需要）
+                    # 前端只需要 complete 事件中的最终音频 URL
 
                 elif tts_event["type"] == "tts_complete":
                     trace_id = tts_event.get("trace_id")
