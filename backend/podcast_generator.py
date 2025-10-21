@@ -19,7 +19,7 @@ from config import (
 from minimax_client import minimax_client
 from content_parser import content_parser
 from voice_manager import voice_manager
-from audio_utils import create_podcast_with_bgm
+from audio_utils import create_podcast_with_bgm, save_sentence_audio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,6 +99,10 @@ class PodcastGenerator:
         all_script_lines = []
         trace_ids = {}
 
+        # 渐进式音频文件路径
+        progressive_filename = f"progressive_{session_id}.mp3"
+        progressive_path = os.path.join(OUTPUT_DIR, progressive_filename)
+
         # Step 1: 生成并播放欢迎音频
         yield {
             "type": "progress",
@@ -134,23 +138,93 @@ class PodcastGenerator:
             "path": self.bgm02_path
         }
 
-        # Step 2: 流式生成脚本和语音
+        # 合并 BGM1 + 欢迎语 + BGM2 作为开场音频
+        logger.info("开始生成开场音频（BGM1 + 欢迎语 + BGM2）")
+        logger.info(f"欢迎语音频 chunks 数量: {len(welcome_audio_chunks)}")
+        try:
+            from pydub import AudioSegment
+
+            logger.info(f"加载 BGM01: {self.bgm01_path}")
+            bgm01 = AudioSegment.from_file(self.bgm01_path)
+            logger.info(f"BGM01 时长: {len(bgm01)}ms")
+
+            logger.info(f"加载 BGM02: {self.bgm02_path}")
+            bgm02 = AudioSegment.from_file(self.bgm02_path).fade_out(1000)
+            logger.info(f"BGM02 时长: {len(bgm02)}ms")
+
+            # 转换欢迎语音频
+            from audio_utils import hex_to_audio_segment
+            welcome_audio = AudioSegment.empty()
+            for i, chunk_hex in enumerate(welcome_audio_chunks):
+                logger.info(f"处理欢迎语 chunk {i + 1}/{len(welcome_audio_chunks)}")
+                chunk = hex_to_audio_segment(chunk_hex)
+                if chunk:
+                    welcome_audio += chunk
+                    logger.info(f"欢迎语累计时长: {len(welcome_audio)}ms")
+
+            logger.info(f"欢迎语总时长: {len(welcome_audio)}ms")
+
+            # 合并：BGM1 + 欢迎语 + BGM2
+            intro_audio = bgm01 + welcome_audio + bgm02
+            logger.info(f"开场音频总时长: {len(intro_audio)}ms")
+
+            # 保存为渐进式音频文件
+            logger.info(f"开始导出开场音频到渐进式文件: {progressive_path}")
+            intro_audio.export(progressive_path, format="mp3")
+            logger.info(f"开场音频已保存到: {progressive_path}")
+
+            # 发送渐进式音频 URL
+            yield {
+                "type": "progressive_audio",
+                "audio_url": f"/download/audio/{progressive_filename}?t={int(time.time())}",
+                "duration_ms": len(intro_audio),
+                "message": "开场音频已生成（BGM1 + 欢迎语 + BGM2）"
+            }
+            logger.info("开场音频 URL 已发送到前端")
+        except Exception as e:
+            logger.error(f"生成开场音频失败: {str(e)}")
+            logger.exception("详细错误:")
+
+        # Step 2: 并发开始脚本生成和封面生成
         yield {
             "type": "progress",
             "step": "script_generation",
-            "message": "正在生成播客脚本..."
+            "message": "正在生成播客脚本和封面..."
         }
 
         script_buffer = ""
         current_speaker = None
         current_text = ""
         sentence_queue = Queue()  # 待合成的句子队列
+        cover_result = {"success": False}  # 封面生成结果
+
+        # 封面生成线程（并发）
+        def cover_generation_thread():
+            nonlocal cover_result
+            try:
+                logger.info("🎨 [封面线程] 开始执行封面生成任务（并发）")
+                # 提取内容摘要（取前500字符）
+                content_summary = content[:500] if len(content) > 500 else content
+
+                cover_result = minimax_client.generate_cover_image(content_summary, api_key=api_key)
+
+                # 发送 Trace IDs
+                if cover_result.get("text_trace_id"):
+                    trace_ids["cover_prompt_generation"] = cover_result.get("text_trace_id")
+
+                if cover_result.get("image_trace_id"):
+                    trace_ids["cover_image_generation"] = cover_result.get("image_trace_id")
+
+                logger.info(f"🎨 [封面线程] 封面生成完成，成功={cover_result['success']}")
+            except Exception as e:
+                logger.error(f"🎨 [封面线程] 封面生成线程异常: {str(e)}")
+                logger.exception("详细错误:")
 
         # 脚本生成线程
         def script_generation_thread():
             nonlocal script_buffer
             try:
-                logger.info("脚本生成线程已启动")
+                logger.info("📝 [脚本线程] 开始执行脚本生成任务")
                 for script_event in minimax_client.generate_script_stream(
                     content,
                     PODCAST_CONFIG["target_duration_min"],
@@ -198,9 +272,15 @@ class PodcastGenerator:
                 # 确保发送完成信号，避免主线程永久阻塞
                 sentence_queue.put(("complete", None, None))
 
-        # 启动脚本生成线程
+        # 启动脚本生成线程和封面生成线程（并发）
         script_thread = threading.Thread(target=script_generation_thread)
+        cover_thread = threading.Thread(target=cover_generation_thread)
+
+        logger.info("🚀 准备启动两个并发线程：脚本生成 + 封面生成")
         script_thread.start()
+        logger.info("📝 [主线程] 脚本生成线程已启动")
+        cover_thread.start()
+        logger.info("🎨 [主线程] 封面生成线程已启动")
 
         # 主线程：消费句子队列，进行语音合成
         tts_sentence_count = 0
@@ -245,6 +325,41 @@ class PodcastGenerator:
                         "trace_id": trace_id
                     }
 
+                    # 立即追加到渐进式音频文件
+                    if sentence_audio_chunks:
+                        try:
+                            from pydub import AudioSegment
+                            from audio_utils import hex_to_audio_segment
+
+                            # 转换句子音频
+                            sentence_audio = AudioSegment.empty()
+                            for chunk_hex in sentence_audio_chunks:
+                                chunk = hex_to_audio_segment(chunk_hex)
+                                if chunk is not None:
+                                    sentence_audio += chunk
+
+                            # 加载当前渐进式文件并追加新句子
+                            if os.path.exists(progressive_path):
+                                current_audio = AudioSegment.from_file(progressive_path)
+                                updated_audio = current_audio + sentence_audio
+                            else:
+                                updated_audio = sentence_audio
+
+                            # 保存更新后的渐进式文件
+                            updated_audio.export(progressive_path, format="mp3")
+                            logger.info(f"句子 {tts_sentence_count} 已追加到渐进式音频，当前总时长: {len(updated_audio)}ms")
+
+                            # 发送更新后的渐进式音频 URL
+                            yield {
+                                "type": "progressive_audio",
+                                "audio_url": f"/download/audio/{progressive_filename}?t={int(time.time())}",
+                                "duration_ms": len(updated_audio),
+                                "sentence_number": tts_sentence_count,
+                                "message": f"第 {tts_sentence_count} 句已添加到播客"
+                            }
+                        except Exception as e:
+                            logger.error(f"追加句子 {tts_sentence_count} 到渐进式音频失败: {str(e)}")
+
                 elif tts_event["type"] == "error":
                     # TTS 错误，也记录 Trace ID
                     if tts_event.get("trace_id"):
@@ -258,7 +373,9 @@ class PodcastGenerator:
                     yield tts_event
 
         # 等待脚本生成线程完成
+        logger.info("📝 [主线程] 等待脚本生成线程完成...")
         script_thread.join()
+        logger.info("📝 [主线程] 脚本生成线程已完成")
 
         yield {
             "type": "progress",
@@ -272,21 +389,59 @@ class PodcastGenerator:
             "trace_id": trace_ids.get("script_generation")
         }
 
-        # Step 3: 生成封面
+        # Step 3: 立即添加结尾 BGM 到渐进式音频（所有对话合成完毕后）
+        logger.info("🎵 [主线程] 开始添加结尾 BGM（立即执行，不等封面）")
         yield {
             "type": "progress",
-            "step": "cover_generation",
-            "message": "正在生成播客封面..."
+            "step": "adding_ending_bgm",
+            "message": "正在添加结尾音乐..."
         }
 
-        # 提取内容摘要（取前500字符）
-        content_summary = content[:500] if len(content) > 500 else content
+        try:
+            from pydub import AudioSegment
 
-        cover_result = minimax_client.generate_cover_image(content_summary, api_key=api_key)
+            # 加载 BGM
+            bgm01 = AudioSegment.from_file(self.bgm01_path)
+            bgm02 = AudioSegment.from_file(self.bgm02_path).fade_out(1000)
 
-        # 无论成功或失败，都记录 Trace ID
+            # 加载当前渐进式音频并追加结尾 BGM
+            if os.path.exists(progressive_path):
+                current_audio = AudioSegment.from_file(progressive_path)
+                final_audio = current_audio + bgm01 + bgm02
+
+                # 保存最终版本
+                final_audio.export(progressive_path, format="mp3")
+                logger.info(f"🎵 [主线程] 结尾 BGM 已追加，最终播客时长: {len(final_audio)}ms")
+
+                # 发送最终音频更新
+                yield {
+                    "type": "progressive_audio",
+                    "audio_url": f"/download/audio/{progressive_filename}?t={int(time.time())}",
+                    "duration_ms": len(final_audio),
+                    "message": "结尾音乐已添加"
+                }
+        except Exception as e:
+            logger.error(f"🎵 [主线程] 添加结尾 BGM 失败: {str(e)}")
+
+        # Step 4: 等待封面生成完成（封面在后台并发生成）
+        # 检查封面线程是否还在运行
+        logger.info("🎨 [主线程] 检查封面线程状态...")
+        if cover_thread.is_alive():
+            yield {
+                "type": "progress",
+                "step": "waiting_cover",
+                "message": "正在等待封面生成完成..."
+            }
+            logger.info("🎨 [主线程] 封面线程仍在运行，等待完成...")
+        else:
+            logger.info("🎨 [主线程] 封面线程已完成")
+
+        # 等待封面生成线程完成
+        cover_thread.join()
+        logger.info("🎨 [主线程] 封面线程已 join 完成")
+
+        # 发送封面相关的 Trace ID
         if cover_result.get("text_trace_id"):
-            trace_ids["cover_prompt_generation"] = cover_result.get("text_trace_id")
             yield {
                 "type": "trace_id",
                 "api": "封面 Prompt 生成",
@@ -294,37 +449,31 @@ class PodcastGenerator:
             }
 
         if cover_result.get("image_trace_id"):
-            trace_ids["cover_image_generation"] = cover_result.get("image_trace_id")
             yield {
                 "type": "trace_id",
                 "api": "封面图生成",
                 "trace_id": cover_result.get("image_trace_id")
             }
 
-        if cover_result["success"]:
+        # 发送封面生成结果
+        if cover_result.get("success"):
             yield {
                 "type": "cover_image",
                 "image_url": cover_result["image_url"],
-                "prompt": cover_result["prompt"]
+                "prompt": cover_result.get("prompt", "")
             }
+            yield {
+                "type": "progress",
+                "step": "cover_complete",
+                "message": "封面生成完成"
+            }
+            logger.info("封面已发送到前端")
         else:
             yield {
-                "type": "error",
-                "message": f"封面生成失败: {cover_result.get('message')}"
+                "type": "progress",
+                "step": "cover_failed",
+                "message": f"封面生成失败: {cover_result.get('message', '未知错误')}"
             }
-
-        # Step 4: 添加结尾 BGM
-        yield {
-            "type": "bgm",
-            "bgm_type": "bgm01",
-            "path": self.bgm01_path
-        }
-
-        yield {
-            "type": "bgm",
-            "bgm_type": "bgm02_fadeout",
-            "path": self.bgm02_path
-        }
 
         # Step 5: 合并完整播客音频
         yield {

@@ -28,6 +28,9 @@ const PodcastGenerator = () => {
 
   const [showLogs, setShowLogs] = useState(false);
 
+  // 渐进式播放相关状态
+  const [progressiveAudioUrl, setProgressiveAudioUrl] = useState('');  // 渐进式音频 URL
+
   const audioRef = useRef(null);
   const eventSourceRef = useRef(null);
 
@@ -68,6 +71,8 @@ const PodcastGenerator = () => {
     setTraceIds(prev => [...prev, { api, traceId }]);
   };
 
+  // 不再需要复杂的播放队列逻辑
+
   // 生成播客
   const handleGenerate = async () => {
     // 验证输入
@@ -88,6 +93,7 @@ const PodcastGenerator = () => {
     setCoverImage('');
     setAudioUrl('');
     setScriptUrl('');
+    setProgressiveAudioUrl('');
     setIsGenerating(true);
 
     // 构建 FormData
@@ -205,7 +211,44 @@ const PodcastGenerator = () => {
         // BGM 和欢迎语音频事件，前端不需要处理
         break;
 
+      case 'progressive_audio':
+        // 收到渐进式音频更新
+        const progressiveUrl = `${API_URL}${data.audio_url}`;
+
+        // 保存播放位置
+        const wasPlaying = audioRef.current && !audioRef.current.paused;
+        const currentTime = audioRef.current ? audioRef.current.currentTime : 0;
+
+        // 更新 URL 状态（这会触发 audio 元素重新渲染）
+        setProgressiveAudioUrl(progressiveUrl);
+
+        // 使用 setTimeout 确保状态更新后再恢复播放
+        setTimeout(() => {
+          if (audioRef.current) {
+            audioRef.current.currentTime = currentTime;
+            if (wasPlaying) {
+              audioRef.current.play().catch(err => {
+                console.error('恢复播放失败:', err);
+              });
+            }
+          }
+        }, 100);
+
+        // 使用后端发送的 message，或生成默认消息
+        let logMessage;
+        if (data.message) {
+          logMessage = `✅ ${data.message}`;
+        } else if (data.sentence_number) {
+          logMessage = `✅ 第 ${data.sentence_number} 句已添加，播客时长: ${Math.round(data.duration_ms / 1000)}秒`;
+        } else {
+          logMessage = `✅ 开场音频已生成，播客时长: ${Math.round(data.duration_ms / 1000)}秒`;
+        }
+        addLog(logMessage);
+        break;
+
       case 'complete':
+        // 不覆盖 progressiveAudioUrl，因为渐进式文件已经是最终版本
+        // 只设置 audioUrl 和 scriptUrl 用于下载按钮
         setAudioUrl(data.audio_url);
         setScriptUrl(data.script_url);
         setIsGenerating(false);
@@ -399,13 +442,30 @@ const PodcastGenerator = () => {
         </div>
       )}
 
-      {/* 播客播放器 */}
-      {audioUrl && (
-        <div className="section player-section">
-          <h2>🎧 播客播放器</h2>
-          <audio ref={audioRef} controls className="audio-player">
-            <source src={`${API_URL}${audioUrl}`} type="audio/mpeg" />
-          </audio>
+      {/* 播客播放器和封面 - 并排显示 */}
+      {((progressiveAudioUrl || audioUrl) || coverImage) && (
+        <div className="player-cover-container">
+          {/* 播客封面 - 左侧 */}
+          {coverImage && (
+            <div className="cover-section">
+              <h2>🖼️ 播客封面</h2>
+              <img src={coverImage} alt="播客封面" className="cover-image" />
+            </div>
+          )}
+
+          {/* 播客播放器 - 右侧 */}
+          {(progressiveAudioUrl || audioUrl) && (
+            <div className="section player-section">
+              <h2>🎧 播客播放器</h2>
+              <audio
+                ref={audioRef}
+                controls
+                className="audio-player"
+                src={progressiveAudioUrl || (audioUrl ? `${API_URL}${audioUrl}` : '')}
+                preload="metadata"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -418,14 +478,6 @@ const PodcastGenerator = () => {
               <p key={index}>{line}</p>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* 播客封面 */}
-      {coverImage && (
-        <div className="section">
-          <h2>🖼️ 播客封面</h2>
-          <img src={coverImage} alt="播客封面" className="cover-image" />
         </div>
       )}
 

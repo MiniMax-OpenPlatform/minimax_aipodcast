@@ -267,4 +267,42 @@ def save_audio_chunk_to_file(audio_hex: str, output_path: str) -> str:
     return output_path
 
 
+def save_sentence_audio(audio_hex_list: list, output_path: str) -> str:
+    """
+    将一个句子的音频 hex chunks 合并并保存为 MP3 文件
+
+    Args:
+        audio_hex_list: 音频十六进制数据列表
+        output_path: 输出文件路径
+
+    Returns:
+        输出文件路径
+    """
+    if not audio_hex_list:
+        logger.warning("音频 chunk 列表为空，无法保存")
+        return None
+
+    logger.info(f"合并 {len(audio_hex_list)} 个音频 chunk 为句子音频")
+
+    # 合并所有 chunk
+    combined = AudioSegment.empty()
+    for i, audio_hex in enumerate(audio_hex_list):
+        try:
+            chunk = hex_to_audio_segment(audio_hex)
+            if chunk is not None:
+                combined += chunk
+        except Exception as e:
+            logger.error(f"合并第 {i + 1} 个 chunk 失败: {str(e)}")
+
+    if len(combined) == 0:
+        logger.warning("合并后的音频为空")
+        return None
+
+    # 导出为 MP3
+    combined.export(output_path, format="mp3")
+    logger.info(f"句子音频已保存: {output_path}, 时长: {len(combined)}ms")
+
+    return output_path
+
+
 

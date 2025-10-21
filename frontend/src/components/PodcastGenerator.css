@@ -203,14 +203,56 @@
   font-weight: 500;
 }
 
-/* 音频播放器 */
+/* 音频播放器和封面容器 */
+.player-cover-container {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 20px;
+}
+
 .player-section {
-  background: linear-gradient(135deg, #F7F7F7 0%, #FFFFFF 100%);
+  flex: 1;
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #EBEBEB;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-section h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #484848;
+  margin-bottom: 16px;
 }
 
 .audio-player {
   width: 100%;
   margin-top: 12px;
+  min-height: 54px;
+  display: block;
+}
+
+.cover-section {
+  width: 200px;
+  flex-shrink: 0;
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #EBEBEB;
+  display: flex;
+  flex-direction: column;
+}
+
+.cover-section h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #484848;
+  margin-bottom: 16px;
 }
 
 /* 脚本显示 */
@@ -232,10 +274,10 @@
 /* 封面图片 */
 .cover-image {
   width: 100%;
-  max-width: 400px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin-top: 12px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* 下载按钮 */
@@ -330,5 +372,13 @@
 
   .download-btn {
     min-width: 100%;
+  }
+
+  .player-cover-container {
+    flex-direction: column-reverse;
+  }
+
+  .cover-section {
+    width: 100%;
   }
 }
