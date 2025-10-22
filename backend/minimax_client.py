@@ -84,12 +84,9 @@ class MinimaxClient:
         """
         logger.info(f"开始生成播客脚本，内容长度: {len(content)} 字符，目标时长: {duration_min}-{duration_max} 分钟")
 
-        # 使用指定的 M2-mini API
-        url = "http://open-platform-for-online-test.xaminim.com/v1/text/chatcompletion_v2"
-        fixed_api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJ6aGVuZ3l1IiwiVXNlck5hbWUiOiJtMm1pbmnlhoXpg6jmtYvor5Xwn5C0IiwiQWNjb3VudCI6Im0ybWluaeWGhemDqOa1i-ivlfCfkLRAMTgyMDY2MjU0NTc3MDM2NTA2NCIsIlN1YmplY3RJRCI6IjE5NTU1MDMyODYzNTQxOTA5NzQiLCJQaG9uZSI6IiIsIkdyb3VwSUQiOiIxODIwNjYyNTQ1NzcwMzY1MDY0IiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMDktMjMgMTQ6NTA6NDkiLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.ClAROvXdaEMKDkJqBR-_fIThRUWmSQXJ2gPzlyhXEyQ8LUTDru_JEupIi1GdDn-L-4x4A52kgYAw475TCp7llZKI_n1Rq3Ig0879sbepTvWRy_eHWpJ95C8JaFv8549JuCFHd_tyybQiP3axLNbBbL32cDooJJBnuFnqX17crAFjcjrNQdz89lxRzsGRRFJsQy-0G1kF2dTBqFBXlZPc4f4KJIbiGSaDJWv307TGujxZ9BJ7dqNnRBpXSaw9VQftyHz_U1hjG1CE4GhSTNzbgw6ddgyaGQyRW3fwtapakB3wP3P5dolZzA34BzKaRwm1UPDxQmz0vl0FCtGGJxXunA"
-        headers = {
-            "Authorization": f"Bearer {fixed_api_key}"
-        }
+        # 使用用户提供的 API Key，或使用配置的默认 Key
+        url = self.endpoints["text_completion"]
+        headers = self._get_headers("text", api_key=api_key)
 
         # 构建 prompt
         prompt = f"""你是一个专业的播客脚本编写助手。请基于以下材料，生成一段 {duration_min}-{duration_max} 分钟的双人播客对话脚本。
@@ -109,8 +106,7 @@ class MinimaxClient:
 请开始生成播客脚本："""
 
         payload = {
-            "model": "MiniMax-M2-mini",
-            "temperature": 1,
+            "model": self.models["text"],
             "messages": [
                 {"role": "system", "name": "MiniMax AI"},
                 {"role": "user", "content": prompt}
@@ -388,16 +384,11 @@ class MinimaxClient:
         try:
             # Step 1: 调用 M2 生成 prompt
             logger.info("开始生成封面图 Prompt...")
-            # 使用指定的 M2-mini API
-            url_text = "http://open-platform-for-online-test.xaminim.com/v1/text/chatcompletion_v2"
-            fixed_api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJ6aGVuZ3l1IiwiVXNlck5hbWUiOiJtMm1pbmnlhoXpg6jmtYvor5Xwn5C0IiwiQWNjb3VudCI6Im0ybWluaeWGhemDqOa1i-ivlfCfkLRAMTgyMDY2MjU0NTc3MDM2NTA2NCIsIlN1YmplY3RJRCI6IjE5NTU1MDMyODYzNTQxOTA5NzQiLCJQaG9uZSI6IiIsIkdyb3VwSUQiOiIxODIwNjYyNTQ1NzcwMzY1MDY0IiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMDktMjMgMTQ6NTA6NDkiLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.ClAROvXdaEMKDkJqBR-_fIThRUWmSQXJ2gPzlyhXEyQ8LUTDru_JEupIi1GdDn-L-4x4A52kgYAw475TCp7llZKI_n1Rq3Ig0879sbepTvWRy_eHWpJ95C8JaFv8549JuCFHd_tyybQiP3axLNbBbL32cDooJJBnuFnqX17crAFjcjrNQdz89lxRzsGRRFJsQy-0G1kF2dTBqFBXlZPc4f4KJIbiGSaDJWv307TGujxZ9BJ7dqNnRBpXSaw9VQftyHz_U1hjG1CE4GhSTNzbgw6ddgyaGQyRW3fwtapakB3wP3P5dolZzA34BzKaRwm1UPDxQmz0vl0FCtGGJxXunA"
-            headers_text = {
-                "Authorization": f"Bearer {fixed_api_key}"
-            }
+            url_text = self.endpoints["text_completion"]
+            headers_text = self._get_headers("text", api_key=api_key)
 
             payload_text = {
-                "model": "MiniMax-M2-mini",
-                "temperature": 1,
+                "model": self.models["text"],
                 "messages": [
                     {"role": "system", "name": "MiniMax AI"},
                     {"role": "user", "content": prompt_generation_prompt}
