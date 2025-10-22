@@ -32,16 +32,16 @@ const PodcastGenerator = () => {
   const [activePlayer, setActivePlayer] = useState(0);  // 当前激活的播放器 (0 或 1)
   const [player0Url, setPlayer0Url] = useState('');
   const [player1Url, setPlayer1Url] = useState('');
-  const [pendingUrl, setPendingUrl] = useState('');  // 待更新的 URL
-  const [updateCounter, setUpdateCounter] = useState(0);  // 更新计数器
 
   // URL 解析警告
   const [urlWarning, setUrlWarning] = useState(null);  // {message: string, error_code: string}
 
   const audioRef0 = useRef(null);
   const audioRef1 = useRef(null);
+  const updateCounterRef = useRef(0);  // 使用 ref 而不是 state，避免异步问题
+  const totalSentencesRef = useRef(0);  // 总句子数
+  const pendingUrlRef = useRef('');  // 待更新的 URL
   const updateTimerRef = useRef(null);
-  const eventSourceRef = useRef(null);
 
   // API 基础 URL（从环境变量读取，默认为 localhost）
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
@@ -80,7 +80,7 @@ const PodcastGenerator = () => {
     setTraceIds(prev => [...prev, { api, traceId }]);
   };
 
-  // 双缓冲播放器 - 平滑更新音频
+  // 双缓冲播放器 - 渐进式累积策略
   const updateProgressiveAudio = (newUrl) => {
     // 清除之前的更新定时器
     if (updateTimerRef.current) {
@@ -88,35 +88,72 @@ const PodcastGenerator = () => {
     }
 
     // 保存待更新的 URL
-    setPendingUrl(newUrl);
+    pendingUrlRef.current = newUrl;
 
-    // 累积 3 次更新或 8 秒后执行更新
-    setUpdateCounter(prev => {
-      const newCount = prev + 1;
+    // 增加计数器
+    updateCounterRef.current += 1;
+    totalSentencesRef.current += 1;
 
-      if (newCount >= 3) {
-        // 达到 3 次，立即更新
-        performUpdate(newUrl);
-        return 0;
-      } else {
-        // 未达到 3 次，设置 8 秒延迟
-        updateTimerRef.current = setTimeout(() => {
-          performUpdate(newUrl);
-          setUpdateCounter(0);
-        }, 8000);
-        return newCount;
+    const count = updateCounterRef.current;
+    const total = totalSentencesRef.current;
+
+    // 渐进式累积策略
+    let shouldUpdate = false;
+    let delayMs = 0;
+
+    if (total === 1) {
+      // 第一句：立即更新（用户需要尽快听到内容）
+      shouldUpdate = true;
+      delayMs = 0;
+    } else if (total <= 3) {
+      // 第 2-3 句：每 2 句更新一次
+      if (count >= 2) {
+        shouldUpdate = true;
+        delayMs = 3000;  // 3 秒延迟
       }
-    });
+    } else if (total <= 8) {
+      // 第 4-8 句：每 3 句更新一次
+      if (count >= 3) {
+        shouldUpdate = true;
+        delayMs = 5000;  // 5 秒延迟
+      }
+    } else {
+      // 第 9 句之后：每 4 句更新一次
+      if (count >= 4) {
+        shouldUpdate = true;
+        delayMs = 8000;  // 8 秒延迟
+      }
+    }
+
+    if (shouldUpdate) {
+      console.log(`[渐进式更新] 第 ${total} 句，累积 ${count} 句，将在 ${delayMs}ms 后更新`);
+      if (delayMs === 0) {
+        // 立即更新
+        performUpdate(newUrl);
+        updateCounterRef.current = 0;
+      } else {
+        // 延迟更新
+        updateTimerRef.current = setTimeout(() => {
+          console.log(`[渐进式更新] 执行延迟更新，当前总句数: ${totalSentencesRef.current}`);
+          performUpdate(pendingUrlRef.current);
+          updateCounterRef.current = 0;
+        }, delayMs);
+      }
+    } else {
+      console.log(`[渐进式更新] 第 ${total} 句，累积 ${count} 句，暂不更新`);
+    }
   };
 
   // 执行实际的播放器更新
   const performUpdate = (newUrl) => {
+    console.log(`[播放器更新] 开始更新，URL: ${newUrl.substring(newUrl.length - 30)}`);
     const currentAudio = activePlayer === 0 ? audioRef0.current : audioRef1.current;
     const nextAudio = activePlayer === 0 ? audioRef1.current : audioRef0.current;
 
     // 如果当前播放器正在播放
     if (currentAudio && !currentAudio.paused) {
       const currentTime = currentAudio.currentTime;
+      console.log(`[播放器更新] 当前播放中，位置: ${currentTime.toFixed(2)}s，将切换到播放器 ${activePlayer === 0 ? 1 : 0}`);
 
       // 预加载下一个播放器
       if (activePlayer === 0) {
@@ -173,11 +210,14 @@ const PodcastGenerator = () => {
     setScriptUrl('');
     setPlayer0Url('');
     setPlayer1Url('');
-    setPendingUrl('');
-    setUpdateCounter(0);
     setActivePlayer(0);
     setUrlWarning(null);
     setIsGenerating(true);
+
+    // 重置 refs
+    updateCounterRef.current = 0;
+    totalSentencesRef.current = 0;
+    pendingUrlRef.current = '';
 
     // 清除更新定时器
     if (updateTimerRef.current) {
