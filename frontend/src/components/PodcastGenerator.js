@@ -494,7 +494,7 @@ const PodcastGenerator = () => {
 
           {/* 播客播放器 - 右侧 */}
           {(progressiveAudioUrl || audioUrl) && (
-            <div className="section player-section">
+            <div className="player-section">
               <h2>🎧 播客播放器</h2>
               <audio
                 ref={audioRef}
