@@ -84,9 +84,9 @@ class MinimaxClient:
         """
         logger.info(f"开始生成播客脚本，内容长度: {len(content)} 字符，目标时长: {duration_min}-{duration_max} 分钟")
 
-        # 使用用户提供的 API Key，或使用配置的默认 Key
+        # 文本模型固定使用配置文件中的 API Key
         url = self.endpoints["text_completion"]
-        headers = self._get_headers("text", api_key=api_key)
+        headers = self._get_headers("text")
 
         # 构建 prompt
         prompt = f"""你是一个专业的播客脚本编写助手。请基于以下材料，生成一段 {duration_min}-{duration_max} 分钟的双人播客对话脚本。
@@ -382,10 +382,10 @@ class MinimaxClient:
 
         text_trace_id = None
         try:
-            # Step 1: 调用 M2 生成 prompt
+            # Step 1: 调用 M2 生成 prompt（文本模型固定使用配置文件中的 API Key）
             logger.info("开始生成封面图 Prompt...")
             url_text = self.endpoints["text_completion"]
-            headers_text = self._get_headers("text", api_key=api_key)
+            headers_text = self._get_headers("text")
 
             payload_text = {
                 "model": self.models["text"],
