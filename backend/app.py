@@ -155,8 +155,12 @@ def generate_podcast():
                     for log in url_result["logs"]:
                         yield f"data: {json.dumps({'type': 'log', 'message': log})}\n\n"
                 else:
-                    yield f"data: {json.dumps({'type': 'error', 'message': url_result['error'], 'allow_retry': True})}\n\n"
-                    # 允许用户重试，不直接 return
+                    # 发送友好的错误提示，但不中断流程
+                    error_code = url_result.get('error_code', 'unknown')
+                    yield f"data: {json.dumps({'type': 'url_parse_warning', 'message': url_result['error'], 'error_code': error_code})}\n\n"
+                    for log in url_result["logs"]:
+                        yield f"data: {json.dumps({'type': 'log', 'message': log})}\n\n"
+                    # 不返回，继续处理其他输入内容
 
             # 合并所有内容
             merged_content = content_parser.merge_contents(text_input, url_content, pdf_content)

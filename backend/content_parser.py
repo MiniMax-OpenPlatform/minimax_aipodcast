@@ -100,14 +100,22 @@ class ContentParser:
             }
 
         except requests.RequestException as e:
-            error_msg = f"网页请求失败: {str(e)}"
-            logs.append(f"错误: {error_msg}")
-            logger.error(error_msg)
+            # 检查是否是 403 Forbidden 错误
+            if "403" in str(e) or "Forbidden" in str(e):
+                error_msg = f"该网站拒绝了访问请求（403 Forbidden）。这通常是因为网站的反爬虫策略限制了服务器访问。\n\n💡 建议：请复制网页文本内容，直接粘贴到"话题文本"输入框中。"
+                logs.append(f"访问被拒绝: {url}")
+                logger.warning(f"403 Forbidden: {url}")
+            else:
+                error_msg = f"网页请求失败: {str(e)}"
+                logs.append(f"错误: {error_msg}")
+                logger.error(error_msg)
+
             return {
                 "success": False,
                 "error": error_msg,
                 "logs": logs,
-                "source": "url"
+                "source": "url",
+                "error_code": "403" if "403" in str(e) else "network_error"
             }
 
         except Exception as e:

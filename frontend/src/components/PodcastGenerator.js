@@ -31,6 +31,9 @@ const PodcastGenerator = () => {
   // 渐进式播放相关状态
   const [progressiveAudioUrl, setProgressiveAudioUrl] = useState('');  // 渐进式音频 URL
 
+  // URL 解析警告
+  const [urlWarning, setUrlWarning] = useState(null);  // {message: string, error_code: string}
+
   const audioRef = useRef(null);
   const eventSourceRef = useRef(null);
 
@@ -94,6 +97,7 @@ const PodcastGenerator = () => {
     setAudioUrl('');
     setScriptUrl('');
     setProgressiveAudioUrl('');
+    setUrlWarning(null);
     setIsGenerating(true);
 
     // 构建 FormData
@@ -254,6 +258,18 @@ const PodcastGenerator = () => {
         setIsGenerating(false);
         setProgress('播客生成完成！');
         addLog('🎉 播客生成完成！可以下载了');
+        break;
+
+      case 'url_parse_warning':
+        // URL 解析失败的警告，但不中断流程
+        addLog(`⚠️ ${data.message}`);
+        setUrlWarning({
+          message: data.message,
+          error_code: data.error_code
+        });
+        if (data.error_code === '403') {
+          setProgress('网址解析遇到问题，但您可以继续使用其他输入方式');
+        }
         break;
 
       case 'error':
@@ -434,6 +450,29 @@ const PodcastGenerator = () => {
       >
         {isGenerating ? '🎙️ 生成中...' : '🚀 开始生成播客'}
       </button>
+
+      {/* URL 解析警告 */}
+      {urlWarning && (
+        <div className="warning-box">
+          <div className="warning-icon">⚠️</div>
+          <div className="warning-content">
+            <div className="warning-title">网址解析遇到问题</div>
+            <div className="warning-message">{urlWarning.message}</div>
+            {urlWarning.error_code === '403' && (
+              <div className="warning-suggestion">
+                💡 <strong>建议操作：</strong>
+                <br />
+                1. 打开该网址，复制页面中的文本内容
+                <br />
+                2. 粘贴到上方的"话题文本"输入框中
+                <br />
+                3. 点击"开始生成播客"继续
+              </div>
+            )}
+          </div>
+          <div className="close-warning" onClick={() => setUrlWarning(null)}>×</div>
+        </div>
+      )}
 
       {/* 进度显示 */}
       {progress && (

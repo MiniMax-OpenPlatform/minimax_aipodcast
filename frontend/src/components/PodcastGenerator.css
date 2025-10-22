@@ -360,6 +360,66 @@
   font-size: 11px;
 }
 
+/* 警告框 */
+.warning-box {
+  background: #FFF4E5;
+  border: 2px solid #FFA500;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.warning-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warning-content {
+  flex: 1;
+}
+
+.warning-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #CC7000;
+  margin-bottom: 8px;
+}
+
+.warning-message {
+  font-size: 14px;
+  color: #8B5A00;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.warning-suggestion {
+  margin-top: 12px;
+  padding: 10px;
+  background: #FFFFFF;
+  border-radius: 6px;
+  border-left: 3px solid #FFA500;
+  font-size: 13px;
+  color: #484848;
+  line-height: 1.5;
+}
+
+.close-warning {
+  cursor: pointer;
+  font-size: 20px;
+  color: #CC7000;
+  flex-shrink: 0;
+  padding: 0 4px;
+  transition: color 0.2s;
+}
+
+.close-warning:hover {
+  color: #FF5A5F;
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
   .voice-config {
