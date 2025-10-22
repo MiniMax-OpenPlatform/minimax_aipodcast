@@ -532,7 +532,7 @@ const PodcastGenerator = () => {
             </a>
           )}
           {coverImage && (
-            <a href={coverImage} download className="download-btn">
+            <a href={`${API_URL}/download/cover?url=${encodeURIComponent(coverImage)}`} download className="download-btn">
               ⬇️ 下载封面
             </a>
           )}

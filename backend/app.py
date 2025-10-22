@@ -288,6 +288,35 @@ def download_script(filename):
         return jsonify({"error": str(e)}), 404
 
 
+@app.route('/download/cover', methods=['GET'])
+def download_cover():
+    """下载封面图片（从OSS代理下载）"""
+    try:
+        import requests
+        cover_url = request.args.get('url')
+        if not cover_url:
+            return jsonify({"error": "未提供封面URL"}), 400
+
+        # 从 OSS 获取图片
+        response = requests.get(cover_url, timeout=30)
+        response.raise_for_status()
+
+        # 生成文件名
+        import time
+        filename = f"podcast_cover_{int(time.time())}.jpg"
+
+        # 返回图片数据，设置下载头
+        from flask import make_response
+        resp = make_response(response.content)
+        resp.headers['Content-Type'] = 'image/jpeg'
+        resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return resp
+
+    except Exception as e:
+        logger.error(f"下载封面失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     """提供静态文件（BGM等）"""
