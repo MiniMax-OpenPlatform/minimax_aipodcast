@@ -84,12 +84,11 @@ class MinimaxClient:
         """
         logger.info(f"开始生成播客脚本，内容长度: {len(content)} 字符，目标时长: {duration_min}-{duration_max} 分钟")
 
-        # 使用指定的 M2-preview API
-        url = "https://api.minimax.io/v1/text/chatcompletion_v2"
-        fixed_api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJNTembqOmcsiIsIlVzZXJOYW1lIjoiTU3pm6jpnLIiLCJBY2NvdW50IjoiIiwiU3ViamVjdElEIjoiMTg2MjExOTYxNjMwNjc0NTUxNyIsIlBob25lIjoiIiwiR3JvdXBJRCI6IjE4NjIxMTk2MTYzMDI1NTEyMTMiLCJQYWdlTmFtZSI6IiIsIk1haWwiOiJ5dWx1QG1pbmltYXhpLmNvbSIsIkNyZWF0ZVRpbWUiOiIyMDI1LTEwLTA3IDIxOjEyOjMyIiwiVG9rZW5UeXBlIjoxLCJpc3MiOiJtaW5pbWF4In0.gB_fIHCvO_BcSAd2kJbr87n7NAFjWGoWaahAa6fR5i23uZZ2wk6-CBW06UIthAwD3314JzDd-mGemzdLM64geA1nycwrMlAxAV4wCp4s6Dc7e2CPBjxgjyzkbnqLF05xLLHmuheOr0qbafJ4G_vObmeBxmGDuVDwN4fvh4I4SZhPnfmv0CLdW4ZqX8qtbotBudL8NJO7E6wrw-GNWaQ6UZndG3U-11TYvvc-O4ho6RIfEKYIwf7ijg6Apuv1bQWYuTLWNAmvIjAuZSBSIdK-G6yACZ09QESwB3kNWqwigDOmdD2BIhhtd0AbTKrIImp0tURba55wSDv96ZBj0Cm2ew"
+        # 使用指定的 M2-mini API
+        url = "http://open-platform-for-online-test.xaminim.com/v1/text/chatcompletion_v2"
+        fixed_api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJ6aGVuZ3l1IiwiVXNlck5hbWUiOiJtMm1pbmnlhoXpg6jmtYvor5Xwn5C0IiwiQWNjb3VudCI6Im0ybWluaeWGhemDqOa1i-ivlfCfkLRAMTgyMDY2MjU0NTc3MDM2NTA2NCIsIlN1YmplY3RJRCI6IjE5NTU1MDMyODYzNTQxOTA5NzQiLCJQaG9uZSI6IiIsIkdyb3VwSUQiOiIxODIwNjYyNTQ1NzcwMzY1MDY0IiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMDktMjMgMTQ6NTA6NDkiLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.ClAROvXdaEMKDkJqBR-_fIThRUWmSQXJ2gPzlyhXEyQ8LUTDru_JEupIi1GdDn-L-4x4A52kgYAw475TCp7llZKI_n1Rq3Ig0879sbepTvWRy_eHWpJ95C8JaFv8549JuCFHd_tyybQiP3axLNbBbL32cDooJJBnuFnqX17crAFjcjrNQdz89lxRzsGRRFJsQy-0G1kF2dTBqFBXlZPc4f4KJIbiGSaDJWv307TGujxZ9BJ7dqNnRBpXSaw9VQftyHz_U1hjG1CE4GhSTNzbgw6ddgyaGQyRW3fwtapakB3wP3P5dolZzA34BzKaRwm1UPDxQmz0vl0FCtGGJxXunA"
         headers = {
-            "Authorization": f"Bearer {fixed_api_key}",
-            "Content-Type": "application/json"
+            "Authorization": f"Bearer {fixed_api_key}"
         }
 
         # 构建 prompt
@@ -110,7 +109,8 @@ class MinimaxClient:
 请开始生成播客脚本："""
 
         payload = {
-            "model": "M2-preview-1016",
+            "model": "MiniMax-M2-mini",
+            "temperature": 1,
             "messages": [
                 {"role": "system", "name": "MiniMax AI"},
                 {"role": "user", "content": prompt}
@@ -388,16 +388,16 @@ class MinimaxClient:
         try:
             # Step 1: 调用 M2 生成 prompt
             logger.info("开始生成封面图 Prompt...")
-            # 使用指定的 M2-preview API
-            url_text = "https://api.minimax.io/v1/text/chatcompletion_v2"
-            fixed_api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJNTembqOmcsiIsIlVzZXJOYW1lIjoiTU3pm6jpnLIiLCJBY2NvdW50IjoiIiwiU3ViamVjdElEIjoiMTg2MjExOTYxNjMwNjc0NTUxNyIsIlBob25lIjoiIiwiR3JvdXBJRCI6IjE4NjIxMTk2MTYzMDI1NTEyMTMiLCJQYWdlTmFtZSI6IiIsIk1haWwiOiJ5dWx1QG1pbmltYXhpLmNvbSIsIkNyZWF0ZVRpbWUiOiIyMDI1LTEwLTA3IDIxOjEyOjMyIiwiVG9rZW5UeXBlIjoxLCJpc3MiOiJtaW5pbWF4In0.gB_fIHCvO_BcSAd2kJbr87n7NAFjWGoWaahAa6fR5i23uZZ2wk6-CBW06UIthAwD3314JzDd-mGemzdLM64geA1nycwrMlAxAV4wCp4s6Dc7e2CPBjxgjyzkbnqLF05xLLHmuheOr0qbafJ4G_vObmeBxmGDuVDwN4fvh4I4SZhPnfmv0CLdW4ZqX8qtbotBudL8NJO7E6wrw-GNWaQ6UZndG3U-11TYvvc-O4ho6RIfEKYIwf7ijg6Apuv1bQWYuTLWNAmvIjAuZSBSIdK-G6yACZ09QESwB3kNWqwigDOmdD2BIhhtd0AbTKrIImp0tURba55wSDv96ZBj0Cm2ew"
+            # 使用指定的 M2-mini API
+            url_text = "http://open-platform-for-online-test.xaminim.com/v1/text/chatcompletion_v2"
+            fixed_api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJ6aGVuZ3l1IiwiVXNlck5hbWUiOiJtMm1pbmnlhoXpg6jmtYvor5Xwn5C0IiwiQWNjb3VudCI6Im0ybWluaeWGhemDqOa1i-ivlfCfkLRAMTgyMDY2MjU0NTc3MDM2NTA2NCIsIlN1YmplY3RJRCI6IjE5NTU1MDMyODYzNTQxOTA5NzQiLCJQaG9uZSI6IiIsIkdyb3VwSUQiOiIxODIwNjYyNTQ1NzcwMzY1MDY0IiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMDktMjMgMTQ6NTA6NDkiLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.ClAROvXdaEMKDkJqBR-_fIThRUWmSQXJ2gPzlyhXEyQ8LUTDru_JEupIi1GdDn-L-4x4A52kgYAw475TCp7llZKI_n1Rq3Ig0879sbepTvWRy_eHWpJ95C8JaFv8549JuCFHd_tyybQiP3axLNbBbL32cDooJJBnuFnqX17crAFjcjrNQdz89lxRzsGRRFJsQy-0G1kF2dTBqFBXlZPc4f4KJIbiGSaDJWv307TGujxZ9BJ7dqNnRBpXSaw9VQftyHz_U1hjG1CE4GhSTNzbgw6ddgyaGQyRW3fwtapakB3wP3P5dolZzA34BzKaRwm1UPDxQmz0vl0FCtGGJxXunA"
             headers_text = {
-                "Authorization": f"Bearer {fixed_api_key}",
-                "Content-Type": "application/json"
+                "Authorization": f"Bearer {fixed_api_key}"
             }
 
             payload_text = {
-                "model": "M2-preview-1016",
+                "model": "MiniMax-M2-mini",
+                "temperature": 1,
                 "messages": [
                     {"role": "system", "name": "MiniMax AI"},
                     {"role": "user", "content": prompt_generation_prompt}
