@@ -84,8 +84,13 @@ class MinimaxClient:
         """
         logger.info(f"开始生成播客脚本，内容长度: {len(content)} 字符，目标时长: {duration_min}-{duration_max} 分钟")
 
-        url = self.endpoints["text_completion"]
-        headers = self._get_headers("text", api_key=api_key)
+        # 使用指定的 M2-preview API
+        url = "https://api.minimax.io/v1/text/chatcompletion_v2"
+        fixed_api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJNTembqOmcsiIsIlVzZXJOYW1lIjoiTU3pm6jpnLIiLCJBY2NvdW50IjoiIiwiU3ViamVjdElEIjoiMTg2MjExOTYxNjMwNjc0NTUxNyIsIlBob25lIjoiIiwiR3JvdXBJRCI6IjE4NjIxMTk2MTYzMDI1NTEyMTMiLCJQYWdlTmFtZSI6IiIsIk1haWwiOiJ5dWx1QG1pbmltYXhpLmNvbSIsIkNyZWF0ZVRpbWUiOiIyMDI1LTEwLTA3IDIxOjEyOjMyIiwiVG9rZW5UeXBlIjoxLCJpc3MiOiJtaW5pbWF4In0.gB_fIHCvO_BcSAd2kJbr87n7NAFjWGoWaahAa6fR5i23uZZ2wk6-CBW06UIthAwD3314JzDd-mGemzdLM64geA1nycwrMlAxAV4wCp4s6Dc7e2CPBjxgjyzkbnqLF05xLLHmuheOr0qbafJ4G_vObmeBxmGDuVDwN4fvh4I4SZhPnfmv0CLdW4ZqX8qtbotBudL8NJO7E6wrw-GNWaQ6UZndG3U-11TYvvc-O4ho6RIfEKYIwf7ijg6Apuv1bQWYuTLWNAmvIjAuZSBSIdK-G6yACZ09QESwB3kNWqwigDOmdD2BIhhtd0AbTKrIImp0tURba55wSDv96ZBj0Cm2ew"
+        headers = {
+            "Authorization": f"Bearer {fixed_api_key}",
+            "Content-Type": "application/json"
+        }
 
         # 构建 prompt
         prompt = f"""你是一个专业的播客脚本编写助手。请基于以下材料，生成一段 {duration_min}-{duration_max} 分钟的双人播客对话脚本。
@@ -105,7 +110,7 @@ class MinimaxClient:
 请开始生成播客脚本："""
 
         payload = {
-            "model": self.models["text"],
+            "model": "M2-preview-1016",
             "messages": [
                 {"role": "system", "name": "MiniMax AI"},
                 {"role": "user", "content": prompt}
@@ -383,11 +388,16 @@ class MinimaxClient:
         try:
             # Step 1: 调用 M2 生成 prompt
             logger.info("开始生成封面图 Prompt...")
-            url_text = self.endpoints["text_completion"]
-            headers_text = self._get_headers("text", api_key=api_key)
+            # 使用指定的 M2-preview API
+            url_text = "https://api.minimax.io/v1/text/chatcompletion_v2"
+            fixed_api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJNTembqOmcsiIsIlVzZXJOYW1lIjoiTU3pm6jpnLIiLCJBY2NvdW50IjoiIiwiU3ViamVjdElEIjoiMTg2MjExOTYxNjMwNjc0NTUxNyIsIlBob25lIjoiIiwiR3JvdXBJRCI6IjE4NjIxMTk2MTYzMDI1NTEyMTMiLCJQYWdlTmFtZSI6IiIsIk1haWwiOiJ5dWx1QG1pbmltYXhpLmNvbSIsIkNyZWF0ZVRpbWUiOiIyMDI1LTEwLTA3IDIxOjEyOjMyIiwiVG9rZW5UeXBlIjoxLCJpc3MiOiJtaW5pbWF4In0.gB_fIHCvO_BcSAd2kJbr87n7NAFjWGoWaahAa6fR5i23uZZ2wk6-CBW06UIthAwD3314JzDd-mGemzdLM64geA1nycwrMlAxAV4wCp4s6Dc7e2CPBjxgjyzkbnqLF05xLLHmuheOr0qbafJ4G_vObmeBxmGDuVDwN4fvh4I4SZhPnfmv0CLdW4ZqX8qtbotBudL8NJO7E6wrw-GNWaQ6UZndG3U-11TYvvc-O4ho6RIfEKYIwf7ijg6Apuv1bQWYuTLWNAmvIjAuZSBSIdK-G6yACZ09QESwB3kNWqwigDOmdD2BIhhtd0AbTKrIImp0tURba55wSDv96ZBj0Cm2ew"
+            headers_text = {
+                "Authorization": f"Bearer {fixed_api_key}",
+                "Content-Type": "application/json"
+            }
 
             payload_text = {
-                "model": self.models["text"],
+                "model": "M2-preview-1016",
                 "messages": [
                     {"role": "system", "name": "MiniMax AI"},
                     {"role": "user", "content": prompt_generation_prompt}
