@@ -220,6 +220,7 @@
   border: 1px solid #EBEBEB;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
 }
 
 .player-section h2 {
@@ -227,11 +228,12 @@
   font-weight: 600;
   color: #484848;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .audio-player {
   width: 100%;
-  margin-top: 12px;
+  margin-top: auto;
   min-height: 54px;
   display: block;
 }
