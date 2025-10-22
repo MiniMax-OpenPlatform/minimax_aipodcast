@@ -28,13 +28,19 @@ const PodcastGenerator = () => {
 
   const [showLogs, setShowLogs] = useState(false);
 
-  // 渐进式播放相关状态
-  const [progressiveAudioUrl, setProgressiveAudioUrl] = useState('');  // 渐进式音频 URL
+  // 渐进式播放相关状态 - 双缓冲方案
+  const [activePlayer, setActivePlayer] = useState(0);  // 当前激活的播放器 (0 或 1)
+  const [player0Url, setPlayer0Url] = useState('');
+  const [player1Url, setPlayer1Url] = useState('');
+  const [pendingUrl, setPendingUrl] = useState('');  // 待更新的 URL
+  const [updateCounter, setUpdateCounter] = useState(0);  // 更新计数器
 
   // URL 解析警告
   const [urlWarning, setUrlWarning] = useState(null);  // {message: string, error_code: string}
 
-  const audioRef = useRef(null);
+  const audioRef0 = useRef(null);
+  const audioRef1 = useRef(null);
+  const updateTimerRef = useRef(null);
   const eventSourceRef = useRef(null);
 
   // API 基础 URL（从环境变量读取，默认为 localhost）
@@ -74,7 +80,76 @@ const PodcastGenerator = () => {
     setTraceIds(prev => [...prev, { api, traceId }]);
   };
 
-  // 不再需要复杂的播放队列逻辑
+  // 双缓冲播放器 - 平滑更新音频
+  const updateProgressiveAudio = (newUrl) => {
+    // 清除之前的更新定时器
+    if (updateTimerRef.current) {
+      clearTimeout(updateTimerRef.current);
+    }
+
+    // 保存待更新的 URL
+    setPendingUrl(newUrl);
+
+    // 累积 3 次更新或 8 秒后执行更新
+    setUpdateCounter(prev => {
+      const newCount = prev + 1;
+
+      if (newCount >= 3) {
+        // 达到 3 次，立即更新
+        performUpdate(newUrl);
+        return 0;
+      } else {
+        // 未达到 3 次，设置 8 秒延迟
+        updateTimerRef.current = setTimeout(() => {
+          performUpdate(newUrl);
+          setUpdateCounter(0);
+        }, 8000);
+        return newCount;
+      }
+    });
+  };
+
+  // 执行实际的播放器更新
+  const performUpdate = (newUrl) => {
+    const currentAudio = activePlayer === 0 ? audioRef0.current : audioRef1.current;
+    const nextAudio = activePlayer === 0 ? audioRef1.current : audioRef0.current;
+
+    // 如果当前播放器正在播放
+    if (currentAudio && !currentAudio.paused) {
+      const currentTime = currentAudio.currentTime;
+
+      // 预加载下一个播放器
+      if (activePlayer === 0) {
+        setPlayer1Url(newUrl);
+      } else {
+        setPlayer0Url(newUrl);
+      }
+
+      // 等待下一个播放器加载完成后切换
+      setTimeout(() => {
+        if (nextAudio) {
+          nextAudio.currentTime = currentTime;
+          nextAudio.play().then(() => {
+            // 切换激活的播放器
+            setActivePlayer(prev => prev === 0 ? 1 : 0);
+            // 暂停之前的播放器
+            if (currentAudio) {
+              currentAudio.pause();
+            }
+          }).catch(err => {
+            console.error('切换播放失败:', err);
+          });
+        }
+      }, 500);
+    } else {
+      // 如果没有播放，直接更新当前播放器
+      if (activePlayer === 0) {
+        setPlayer0Url(newUrl);
+      } else {
+        setPlayer1Url(newUrl);
+      }
+    }
+  };
 
   // 生成播客
   const handleGenerate = async () => {
@@ -96,9 +171,18 @@ const PodcastGenerator = () => {
     setCoverImage('');
     setAudioUrl('');
     setScriptUrl('');
-    setProgressiveAudioUrl('');
+    setPlayer0Url('');
+    setPlayer1Url('');
+    setPendingUrl('');
+    setUpdateCounter(0);
+    setActivePlayer(0);
     setUrlWarning(null);
     setIsGenerating(true);
+
+    // 清除更新定时器
+    if (updateTimerRef.current) {
+      clearTimeout(updateTimerRef.current);
+    }
 
     // 构建 FormData
     const formData = new FormData();
@@ -216,27 +300,11 @@ const PodcastGenerator = () => {
         break;
 
       case 'progressive_audio':
-        // 收到渐进式音频更新
+        // 收到渐进式音频更新 - 使用双缓冲策略
         const progressiveUrl = `${API_URL}${data.audio_url}`;
 
-        // 保存播放位置
-        const wasPlaying = audioRef.current && !audioRef.current.paused;
-        const currentTime = audioRef.current ? audioRef.current.currentTime : 0;
-
-        // 更新 URL 状态（这会触发 audio 元素重新渲染）
-        setProgressiveAudioUrl(progressiveUrl);
-
-        // 使用 setTimeout 确保状态更新后再恢复播放
-        setTimeout(() => {
-          if (audioRef.current) {
-            audioRef.current.currentTime = currentTime;
-            if (wasPlaying) {
-              audioRef.current.play().catch(err => {
-                console.error('恢复播放失败:', err);
-              });
-            }
-          }
-        }, 100);
+        // 调用双缓冲更新函数（会自动累积并平滑切换）
+        updateProgressiveAudio(progressiveUrl);
 
         // 使用后端发送的 message，或生成默认消息
         let logMessage;
@@ -482,7 +550,7 @@ const PodcastGenerator = () => {
       )}
 
       {/* 播客播放器和封面 - 并排显示 */}
-      {((progressiveAudioUrl || audioUrl) || coverImage) && (
+      {((player0Url || player1Url || audioUrl) || coverImage) && (
         <div className="player-cover-container">
           {/* 播客封面 - 左侧 */}
           {coverImage && (
@@ -492,16 +560,27 @@ const PodcastGenerator = () => {
             </div>
           )}
 
-          {/* 播客播放器 - 右侧 */}
-          {(progressiveAudioUrl || audioUrl) && (
+          {/* 播客播放器 - 右侧 - 双缓冲 */}
+          {(player0Url || player1Url || audioUrl) && (
             <div className="player-section">
               <h2>🎧 播客播放器</h2>
+              {/* 播放器 0 */}
               <audio
-                ref={audioRef}
-                controls
+                ref={audioRef0}
+                controls={activePlayer === 0}
                 className="audio-player"
-                src={progressiveAudioUrl || (audioUrl ? `${API_URL}${audioUrl}` : '')}
+                src={player0Url || (audioUrl && activePlayer === 0 ? `${API_URL}${audioUrl}` : '')}
                 preload="metadata"
+                style={{ display: activePlayer === 0 ? 'block' : 'none' }}
+              />
+              {/* 播放器 1 */}
+              <audio
+                ref={audioRef1}
+                controls={activePlayer === 1}
+                className="audio-player"
+                src={player1Url || (audioUrl && activePlayer === 1 ? `${API_URL}${audioUrl}` : '')}
+                preload="metadata"
+                style={{ display: activePlayer === 1 ? 'block' : 'none' }}
               />
             </div>
           )}
