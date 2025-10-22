@@ -38,10 +38,6 @@ const PodcastGenerator = () => {
 
   const audioRef0 = useRef(null);
   const audioRef1 = useRef(null);
-  const updateCounterRef = useRef(0);  // 使用 ref 而不是 state，避免异步问题
-  const totalSentencesRef = useRef(0);  // 总句子数
-  const pendingUrlRef = useRef('');  // 待更新的 URL
-  const updateTimerRef = useRef(null);
 
   // API 基础 URL（从环境变量读取，默认为 localhost）
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
@@ -80,68 +76,10 @@ const PodcastGenerator = () => {
     setTraceIds(prev => [...prev, { api, traceId }]);
   };
 
-  // 双缓冲播放器 - 渐进式累积策略
+  // 双缓冲播放器 - 后端已控制更新频率，前端直接更新即可
   const updateProgressiveAudio = (newUrl) => {
-    // 清除之前的更新定时器
-    if (updateTimerRef.current) {
-      clearTimeout(updateTimerRef.current);
-    }
-
-    // 保存待更新的 URL
-    pendingUrlRef.current = newUrl;
-
-    // 增加计数器
-    updateCounterRef.current += 1;
-    totalSentencesRef.current += 1;
-
-    const count = updateCounterRef.current;
-    const total = totalSentencesRef.current;
-
-    // 渐进式累积策略
-    let shouldUpdate = false;
-    let delayMs = 0;
-
-    if (total === 1) {
-      // 第一句：立即更新（用户需要尽快听到内容）
-      shouldUpdate = true;
-      delayMs = 0;
-    } else if (total <= 3) {
-      // 第 2-3 句：每 2 句更新一次
-      if (count >= 2) {
-        shouldUpdate = true;
-        delayMs = 3000;  // 3 秒延迟
-      }
-    } else if (total <= 8) {
-      // 第 4-8 句：每 3 句更新一次
-      if (count >= 3) {
-        shouldUpdate = true;
-        delayMs = 5000;  // 5 秒延迟
-      }
-    } else {
-      // 第 9 句之后：每 4 句更新一次
-      if (count >= 4) {
-        shouldUpdate = true;
-        delayMs = 8000;  // 8 秒延迟
-      }
-    }
-
-    if (shouldUpdate) {
-      console.log(`[渐进式更新] 第 ${total} 句，累积 ${count} 句，将在 ${delayMs}ms 后更新`);
-      if (delayMs === 0) {
-        // 立即更新
-        performUpdate(newUrl);
-        updateCounterRef.current = 0;
-      } else {
-        // 延迟更新
-        updateTimerRef.current = setTimeout(() => {
-          console.log(`[渐进式更新] 执行延迟更新，当前总句数: ${totalSentencesRef.current}`);
-          performUpdate(pendingUrlRef.current);
-          updateCounterRef.current = 0;
-        }, delayMs);
-      }
-    } else {
-      console.log(`[渐进式更新] 第 ${total} 句，累积 ${count} 句，暂不更新`);
-    }
+    console.log(`[前端播放器] 收到后端更新事件，URL: ${newUrl.substring(newUrl.length - 30)}`);
+    performUpdate(newUrl);
   };
 
   // 执行实际的播放器更新
@@ -213,16 +151,6 @@ const PodcastGenerator = () => {
     setActivePlayer(0);
     setUrlWarning(null);
     setIsGenerating(true);
-
-    // 重置 refs
-    updateCounterRef.current = 0;
-    totalSentencesRef.current = 0;
-    pendingUrlRef.current = '';
-
-    // 清除更新定时器
-    if (updateTimerRef.current) {
-      clearTimeout(updateTimerRef.current);
-    }
 
     // 构建 FormData
     const formData = new FormData();

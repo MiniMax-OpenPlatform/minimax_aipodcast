@@ -283,7 +283,10 @@ class PodcastGenerator:
         logger.info("🎨 [主线程] 封面生成线程已启动")
 
         # 主线程：消费句子队列，进行语音合成
-        tts_sentence_count = 0
+        tts_sentence_count = 0  # 总句子数
+        update_counter = 0  # 累积计数器（用于判断是否需要发送更新）
+        import math
+
         while True:
             item = sentence_queue.get()
             if item[0] == "complete":
@@ -349,14 +352,48 @@ class PodcastGenerator:
                             updated_audio.export(progressive_path, format="mp3")
                             logger.info(f"句子 {tts_sentence_count} 已追加到渐进式音频，当前总时长: {len(updated_audio)}ms")
 
-                            # 发送更新后的渐进式音频 URL
-                            yield {
-                                "type": "progressive_audio",
-                                "audio_url": f"/download/audio/{progressive_filename}?t={int(time.time())}",
-                                "duration_ms": len(updated_audio),
-                                "sentence_number": tts_sentence_count,
-                                "message": f"第 {tts_sentence_count} 句已添加到播客"
-                            }
+                            # 渐进式累积策略：控制何时发送 progressive_audio 事件
+                            update_counter += 1
+                            should_send_update = False
+
+                            if tts_sentence_count == 1:
+                                # 第一句：立即发送（用户需要尽快听到内容）
+                                should_send_update = True
+                                logger.info(f"[后端渐进式] 第 {tts_sentence_count} 句，立即发送更新")
+                            elif tts_sentence_count <= 3:
+                                # 第 2-3 句：每 2 句发送一次
+                                if update_counter >= 2:
+                                    should_send_update = True
+                                    update_counter = 0
+                                    logger.info(f"[后端渐进式] 第 {tts_sentence_count} 句，累积 2 句，发送更新")
+                                else:
+                                    logger.info(f"[后端渐进式] 第 {tts_sentence_count} 句，累积 {update_counter} 句，暂不发送")
+                            elif tts_sentence_count <= 8:
+                                # 第 4-8 句：每 3 句发送一次
+                                if update_counter >= 3:
+                                    should_send_update = True
+                                    update_counter = 0
+                                    logger.info(f"[后端渐进式] 第 {tts_sentence_count} 句，累积 3 句，发送更新")
+                                else:
+                                    logger.info(f"[后端渐进式] 第 {tts_sentence_count} 句，累积 {update_counter} 句，暂不发送")
+                            else:
+                                # 第 9 句之后：每 4 句发送一次
+                                if update_counter >= 4:
+                                    should_send_update = True
+                                    update_counter = 0
+                                    logger.info(f"[后端渐进式] 第 {tts_sentence_count} 句，累积 4 句，发送更新")
+                                else:
+                                    logger.info(f"[后端渐进式] 第 {tts_sentence_count} 句，累积 {update_counter} 句，暂不发送")
+
+                            # 只有在需要发送时才 yield progressive_audio 事件
+                            if should_send_update:
+                                yield {
+                                    "type": "progressive_audio",
+                                    "audio_url": f"/download/audio/{progressive_filename}?t={int(time.time())}",
+                                    "duration_ms": len(updated_audio),
+                                    "sentence_number": tts_sentence_count,
+                                    "message": f"第 {tts_sentence_count} 句已添加到播客，播客时长: {math.ceil(len(updated_audio) / 1000)}秒"
+                                }
                         except Exception as e:
                             logger.error(f"追加句子 {tts_sentence_count} 到渐进式音频失败: {str(e)}")
 
