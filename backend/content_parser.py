@@ -102,7 +102,7 @@ class ContentParser:
         except requests.RequestException as e:
             # 检查是否是 403 Forbidden 错误
             if "403" in str(e) or "Forbidden" in str(e):
-                error_msg = f"该网站拒绝了访问请求（403 Forbidden）。这通常是因为网站的反爬虫策略限制了服务器访问。\n\n💡 建议：请复制网页文本内容，直接粘贴到"话题文本"输入框中。"
+                error_msg = f"该网站拒绝了访问请求（403 Forbidden）。这通常是因为网站的反爬虫策略限制了服务器访问。\n\n💡 建议：请复制网页文本内容，直接粘贴到「话题文本」输入框中。"
                 logs.append(f"访问被拒绝: {url}")
                 logger.warning(f"403 Forbidden: {url}")
             else:
