@@ -91,9 +91,13 @@ class MinimaxClient:
         # 构建 prompt
         prompt = f"""你是一个专业的播客脚本编写助手。请基于以下材料，生成一段 {duration_min}-{duration_max} 分钟的双人播客对话脚本。
 
+播客节目信息：
+- 节目名称：MiniMax AI 播客节目
+- 主持人：Mini（Speaker1）和 Max（Speaker2）
+
 要求：
 1. 对话风格：轻松幽默，自然流畅
-2. 说话人：Speaker1（主持人，引导话题）和 Speaker2（嘉宾，深度分析）
+2. 说话人：Speaker1（Mini，活泼亲切，引导话题）和 Speaker2（Max，稳重专业，深度分析）
 3. 文本要自然，包含适当的重复、语气词、停顿等真人对话特征
 4. 每句话单独一行，格式为：Speaker1: 内容 或 Speaker2: 内容
 5. 开场白要吸引人，结尾要有总结
@@ -144,6 +148,20 @@ class MinimaxClient:
                     if line.startswith('data:'):
                         try:
                             data = json.loads(line[5:].strip())
+
+                            # 检查是否有 base_resp 错误
+                            if 'base_resp' in data:
+                                base_resp = data.get('base_resp', {})
+                                if base_resp.get('status_code') != 0:
+                                    error_msg = base_resp.get('status_msg', '未知错误')
+                                    logger.error(f"脚本生成 API 返回错误: {error_msg}")
+                                    yield {
+                                        "type": "error",
+                                        "message": f"脚本生成失败: {error_msg}",
+                                        "trace_id": trace_id
+                                    }
+                                    return
+
                             if 'choices' in data and len(data['choices']) > 0:
                                 delta = data['choices'][0].get('delta', {})
                                 content_chunk = delta.get('content', '')
@@ -199,7 +217,7 @@ class MinimaxClient:
 
     def synthesize_speech_stream(self, text: str, voice_id: str, api_key: Optional[str] = None) -> Iterator[Dict[str, Any]]:
         """
-        流式语音合成
+        语音合成（非流式，一次性返回完整音频）
 
         Args:
             text: 要合成的文本
@@ -215,7 +233,7 @@ class MinimaxClient:
         payload = {
             "model": self.models["tts"],
             "text": text,
-            "stream": True,
+            "stream": False,  # 改为非流式，一次性返回完整音频
             "voice_setting": {
                 "voice_id": voice_id,
                 "speed": 1,
@@ -232,7 +250,7 @@ class MinimaxClient:
                 url,
                 headers=headers,
                 json=payload,
-                stream=True,
+                stream=False,  # 非流式请求
                 timeout=TIMEOUTS["tts_per_sentence"]
             )
 
@@ -241,23 +259,40 @@ class MinimaxClient:
 
             response.raise_for_status()
 
-            # 流式读取音频 chunk
-            for line in response.iter_lines():
-                if line:
-                    line_str = line.decode('utf-8')
-                    if line_str.startswith('data:'):
-                        try:
-                            data = json.loads(line_str[5:].strip())
-                            if "data" in data and "extra_info" not in data:
-                                if "audio" in data["data"]:
-                                    audio_hex = data["data"]["audio"]
-                                    yield {
-                                        "type": "audio_chunk",
-                                        "audio": audio_hex,
-                                        "trace_id": trace_id
-                                    }
-                        except json.JSONDecodeError:
-                            continue
+            # 解析非流式响应
+            result = response.json()
+            logger.info(f"TTS 响应: {result.get('base_resp', {})}")
+
+            # 检查 base_resp 错误
+            base_resp = result.get('base_resp', {})
+            if base_resp.get('status_code') != 0:
+                error_msg = base_resp.get('status_msg', '未知错误')
+                logger.error(f"TTS API 返回错误: {error_msg}, 完整响应: {result}")
+                yield {
+                    "type": "error",
+                    "message": f"语音合成失败: {error_msg}",
+                    "trace_id": trace_id
+                }
+                return
+
+            # 获取完整音频数据
+            if "data" in result and "audio" in result["data"]:
+                audio_hex = result["data"]["audio"]
+                logger.info(f"TTS 成功，音频数据长度: {len(audio_hex)} 字符")
+                # 返回完整音频（作为单个 chunk）
+                yield {
+                    "type": "audio_chunk",
+                    "audio": audio_hex,
+                    "trace_id": trace_id
+                }
+            else:
+                logger.error(f"TTS 响应中没有音频数据: {result}")
+                yield {
+                    "type": "error",
+                    "message": "语音合成失败: 响应中没有音频数据",
+                    "trace_id": trace_id
+                }
+                return
 
             # 完成信号
             yield {
@@ -298,6 +333,7 @@ class MinimaxClient:
         }
 
         try:
+            logger.info(f"开始上传音频文件: {audio_file_path}")
             with open(audio_file_path, 'rb') as f:
                 files = {'file': f}
                 data = {'purpose': 'voice_clone'}
@@ -312,12 +348,15 @@ class MinimaxClient:
                 upload_trace_id = self._extract_trace_id(response_upload)
 
                 upload_result = response_upload.json()
+                logger.info(f"文件上传响应: {upload_result}")
                 file_id = upload_result.get("file", {}).get("file_id")
 
                 if not file_id:
+                    logger.error(f"文件上传失败，未获取到 file_id。完整响应: {upload_result}")
                     raise Exception("文件上传失败，未获取到 file_id")
 
             # Step 2: 调用音色克隆 API
+            logger.info(f"开始调用音色克隆 API，file_id: {file_id}, voice_id: {voice_id}")
             clone_url = self.endpoints["voice_clone"]
             headers_clone = self._get_headers("other", api_key=api_key)
 
@@ -328,6 +367,7 @@ class MinimaxClient:
                 "model": self.models["voice_clone"]
             }
 
+            logger.info(f"音色克隆请求 payload: {payload}")
             response_clone = requests.post(
                 clone_url,
                 headers=headers_clone,
@@ -338,6 +378,21 @@ class MinimaxClient:
             clone_trace_id = self._extract_trace_id(response_clone)
 
             result = response_clone.json()
+            logger.info(f"音色克隆响应: {result}")
+
+            # 检查 base_resp.status_code
+            base_resp = result.get("base_resp", {})
+            if base_resp.get("status_code") != 0:
+                error_msg = base_resp.get("status_msg", "未知错误")
+                logger.error(f"音色克隆 API 返回错误: status_code={base_resp.get('status_code')}, msg={error_msg}")
+                logger.error(f"完整响应: {result}")
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "message": f"音色克隆失败: {error_msg}",
+                    "upload_trace_id": upload_trace_id,
+                    "clone_trace_id": clone_trace_id
+                }
 
             return {
                 "success": True,
@@ -370,10 +425,7 @@ class MinimaxClient:
         prompt_generation_prompt = f"""基于以下播客内容摘要，生成一个简洁的图片描述 prompt。
 
 要求：
-1. 图片风格：漫画风格
-2. 主角：一男一女两个人
-3. 场景：播客录音室或相关场景
-4. 描述要简洁直观，30字以内
+1. 描述要简洁直观，30字以内
 
 播客内容摘要：
 {content_summary}
@@ -401,7 +453,7 @@ class MinimaxClient:
                 url_text,
                 headers=headers_text,
                 json=payload_text,
-                timeout=30
+                timeout=TIMEOUTS["cover_prompt_generation"]
             )
 
             # 立即提取 Trace ID

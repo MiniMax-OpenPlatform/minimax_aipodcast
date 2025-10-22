@@ -54,7 +54,7 @@ MINIMAX_API_ENDPOINTS = {
 
 # ========== 模型配置 ==========
 MODELS = {
-    "text": "MiniMax-M1",
+    "text": "MiniMax-M2-Preview",
     "tts": "speech-2.5-hd-preview",
     "voice_clone": "speech-02-turbo",
     "image": "image-01-live"
@@ -75,7 +75,8 @@ TIMEOUTS = {
     "voice_clone": 60,
     "script_generation": 120,
     "tts_per_sentence": 30,
-    "image_generation": 60
+    "cover_prompt_generation": 60,  # 封面 Prompt 生成超时
+    "image_generation": 90  # 图像生成超时（增加到90秒）
 }
 
 # ========== 文件路径配置 ==========

@@ -237,11 +237,24 @@ def create_podcast_with_bgm(bgm01_path: str, bgm02_path: str,
         except Exception as e:
             logger.error(f"合并对话 chunk 失败: {str(e)}")
 
+    # 对欢迎语和对话内容进行 normalize（保证句子间相对音量一致）
+    if len(welcome_audio) > 0:
+        welcome_audio = normalize(welcome_audio)
+        logger.info(f"欢迎语音频已标准化，音量: {welcome_audio.dBFS:.2f} dBFS")
+
+    if len(dialogue_audio) > 0:
+        dialogue_audio = normalize(dialogue_audio)
+        logger.info(f"对话音频已标准化，音量: {dialogue_audio.dBFS:.2f} dBFS")
+
     # 拼接完整播客：BGM01 + 欢迎语 + BGM02 + 对话内容 + BGM01 + BGM02
     podcast = bgm01 + welcome_audio + bgm02 + dialogue_audio + bgm01 + bgm02
 
-    # 标准化音量
-    podcast = normalize(podcast)
+    # 将整段音频调整到固定目标音量 -18 dB
+    if len(podcast) > 0:
+        target_dBFS = -18.0
+        change_in_dBFS = target_dBFS - podcast.dBFS
+        podcast = podcast.apply_gain(change_in_dBFS)
+        logger.info(f"最终播客音量已调整到目标 -18 dB，实际: {podcast.dBFS:.2f} dBFS")
 
     # 导出
     podcast.export(output_path, format="mp3")

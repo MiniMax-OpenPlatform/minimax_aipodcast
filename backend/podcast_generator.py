@@ -99,9 +99,10 @@ class PodcastGenerator:
         all_script_lines = []
         trace_ids = {}
 
-        # 渐进式音频文件路径
+        # 渐进式音频文件路径和内存中的 AudioSegment 对象
         progressive_filename = f"progressive_{session_id}.mp3"
         progressive_path = os.path.join(OUTPUT_DIR, progressive_filename)
+        progressive_audio_in_memory = None  # 在内存中累积,避免多次 MP3 编码/解码
 
         # Step 1: 生成并播放欢迎音频
         yield {
@@ -143,6 +144,7 @@ class PodcastGenerator:
         logger.info(f"欢迎语音频 chunks 数量: {len(welcome_audio_chunks)}")
         try:
             from pydub import AudioSegment
+            from pydub.effects import normalize
 
             logger.info(f"加载 BGM01: {self.bgm01_path}")
             bgm01 = AudioSegment.from_file(self.bgm01_path)
@@ -164,13 +166,29 @@ class PodcastGenerator:
 
             logger.info(f"欢迎语总时长: {len(welcome_audio)}ms")
 
-            # 合并：BGM1 + 欢迎语 + BGM2
-            intro_audio = bgm01 + welcome_audio + bgm02
-            logger.info(f"开场音频总时长: {len(intro_audio)}ms")
+            # 对欢迎语音频进行 normalize 并调整到 -18 dB
+            if len(welcome_audio) > 0:
+                welcome_audio = normalize(welcome_audio)
+                logger.info(f"欢迎语音频已标准化，音量: {welcome_audio.dBFS:.2f} dBFS")
+                target_dBFS = -18.0
+                change_in_dBFS = target_dBFS - welcome_audio.dBFS
+                welcome_audio = welcome_audio.apply_gain(change_in_dBFS)
+                logger.info(f"欢迎语音量已调整到 -18 dB，实际: {welcome_audio.dBFS:.2f} dBFS")
 
-            # 保存为渐进式音频文件
+            # 对 BGM 也调整到 -18 dB
+            bgm01_adjusted = bgm01.apply_gain(-18.0 - bgm01.dBFS)
+            bgm02_adjusted = bgm02.apply_gain(-18.0 - bgm02.dBFS)
+
+            # 合并：BGM1 + 欢迎语 + BGM2（所有部分都已经是 -18 dB）
+            intro_audio = bgm01_adjusted + welcome_audio + bgm02_adjusted
+            logger.info(f"开场音频总时长: {len(intro_audio)}ms，音量: {intro_audio.dBFS:.2f} dBFS")
+
+            # 保存到内存
+            progressive_audio_in_memory = intro_audio
+
+            # 导出到文件（仅用于前端播放）
             logger.info(f"开始导出开场音频到渐进式文件: {progressive_path}")
-            intro_audio.export(progressive_path, format="mp3")
+            progressive_audio_in_memory.export(progressive_path, format="mp3")
             logger.info(f"开场音频已保存到: {progressive_path}")
 
             # 发送渐进式音频 URL
@@ -332,6 +350,7 @@ class PodcastGenerator:
                     if sentence_audio_chunks:
                         try:
                             from pydub import AudioSegment
+                            from pydub.effects import normalize
                             from audio_utils import hex_to_audio_segment
 
                             # 转换句子音频
@@ -341,16 +360,20 @@ class PodcastGenerator:
                                 if chunk is not None:
                                     sentence_audio += chunk
 
-                            # 加载当前渐进式文件并追加新句子
-                            if os.path.exists(progressive_path):
-                                current_audio = AudioSegment.from_file(progressive_path)
-                                updated_audio = current_audio + sentence_audio
-                            else:
-                                updated_audio = sentence_audio
+                            # 对单句进行 normalize，然后调整到目标音量
+                            if len(sentence_audio) > 0:
+                                sentence_audio = normalize(sentence_audio)
+                                logger.info(f"句子 {tts_sentence_count} 音频已标准化，音量: {sentence_audio.dBFS:.2f} dBFS")
 
-                            # 保存更新后的渐进式文件
-                            updated_audio.export(progressive_path, format="mp3")
-                            logger.info(f"句子 {tts_sentence_count} 已追加到渐进式音频，当前总时长: {len(updated_audio)}ms")
+                                # 将单句调整到目标音量 -18 dB
+                                target_dBFS = -18.0
+                                change_in_dBFS = target_dBFS - sentence_audio.dBFS
+                                sentence_audio = sentence_audio.apply_gain(change_in_dBFS)
+                                logger.info(f"句子 {tts_sentence_count} 音量已调整到 -18 dB，实际: {sentence_audio.dBFS:.2f} dBFS")
+
+                            # 在内存中追加（避免多次 MP3 编码/解码）
+                            progressive_audio_in_memory = progressive_audio_in_memory + sentence_audio
+                            logger.info(f"句子 {tts_sentence_count} 已追加到内存，当前总时长: {len(progressive_audio_in_memory)}ms，音量: {progressive_audio_in_memory.dBFS:.2f} dBFS")
 
                             # 渐进式累积策略：控制何时发送 progressive_audio 事件
                             update_counter += 1
@@ -385,14 +408,18 @@ class PodcastGenerator:
                                 else:
                                     logger.info(f"[后端渐进式] 第 {tts_sentence_count} 句，累积 {update_counter} 句，暂不发送")
 
-                            # 只有在需要发送时才 yield progressive_audio 事件
+                            # 只有在需要发送时才导出到文件并发送事件
                             if should_send_update:
+                                # 导出当前内存中的音频到文件
+                                progressive_audio_in_memory.export(progressive_path, format="mp3")
+                                logger.info(f"第 {tts_sentence_count} 句：导出到渐进式文件，时长: {len(progressive_audio_in_memory)}ms")
+
                                 yield {
                                     "type": "progressive_audio",
                                     "audio_url": f"/download/audio/{progressive_filename}?t={int(time.time())}",
-                                    "duration_ms": len(updated_audio),
+                                    "duration_ms": len(progressive_audio_in_memory),
                                     "sentence_number": tts_sentence_count,
-                                    "message": f"第 {tts_sentence_count} 句已添加到播客，播客时长: {math.ceil(len(updated_audio) / 1000)}秒"
+                                    "message": f"第 {tts_sentence_count} 句已添加到播客，播客时长: {math.ceil(len(progressive_audio_in_memory) / 1000)}秒"
                                 }
                         except Exception as e:
                             logger.error(f"追加句子 {tts_sentence_count} 到渐进式音频失败: {str(e)}")
@@ -437,26 +464,29 @@ class PodcastGenerator:
         try:
             from pydub import AudioSegment
 
-            # 加载 BGM
+            # 加载 BGM 并调整到 -18 dB
             bgm01 = AudioSegment.from_file(self.bgm01_path)
             bgm02 = AudioSegment.from_file(self.bgm02_path).fade_out(1000)
 
-            # 加载当前渐进式音频并追加结尾 BGM
-            if os.path.exists(progressive_path):
-                current_audio = AudioSegment.from_file(progressive_path)
-                final_audio = current_audio + bgm01 + bgm02
+            bgm01_adjusted = bgm01.apply_gain(-18.0 - bgm01.dBFS)
+            bgm02_adjusted = bgm02.apply_gain(-18.0 - bgm02.dBFS)
+            logger.info(f"🎵 BGM1 音量: {bgm01_adjusted.dBFS:.2f} dBFS, BGM2 音量: {bgm02_adjusted.dBFS:.2f} dBFS")
 
-                # 保存最终版本
-                final_audio.export(progressive_path, format="mp3")
-                logger.info(f"🎵 [主线程] 结尾 BGM 已追加，最终播客时长: {len(final_audio)}ms")
+            # 在内存中追加结尾 BGM
+            progressive_audio_in_memory = progressive_audio_in_memory + bgm01_adjusted + bgm02_adjusted
+            logger.info(f"🎵 [主线程] 结尾 BGM 已追加到内存，最终播客时长: {len(progressive_audio_in_memory)}ms，音量: {progressive_audio_in_memory.dBFS:.2f} dBFS")
 
-                # 发送最终音频更新
-                yield {
-                    "type": "progressive_audio",
-                    "audio_url": f"/download/audio/{progressive_filename}?t={int(time.time())}",
-                    "duration_ms": len(final_audio),
-                    "message": "结尾音乐已添加"
-                }
+            # 导出最终版本到文件
+            progressive_audio_in_memory.export(progressive_path, format="mp3")
+            logger.info(f"🎵 最终播客已导出到文件: {progressive_path}")
+
+            # 发送最终音频更新
+            yield {
+                "type": "progressive_audio",
+                "audio_url": f"/download/audio/{progressive_filename}?t={int(time.time())}",
+                "duration_ms": len(progressive_audio_in_memory),
+                "message": "结尾音乐已添加"
+            }
         except Exception as e:
             logger.error(f"🎵 [主线程] 添加结尾 BGM 失败: {str(e)}")
 
