@@ -45,7 +45,7 @@ WELCOME_VOICE_ID = DEFAULT_VOICES["mini"]["voice_id"]  # 使用 Mini 音色
 # ========== MiniMax API 端点配置 ==========
 MINIMAX_API_BASE = "https://api.minimax.io"
 MINIMAX_API_ENDPOINTS = {
-    "text_completion": "https://api.minimax.io/v1/text/chatcompletion_v2",
+    "text_completion": "https://api.minimaxi.com/v1/text/chatcompletion_v2",
     "tts": "https://api.minimaxi.com/v1/t2a_v2",
     "voice_clone": "https://api.minimax.chat/v1/voice_clone",
     "file_upload": "https://api.minimax.chat/v1/files/upload",
@@ -54,7 +54,7 @@ MINIMAX_API_ENDPOINTS = {
 
 # ========== 模型配置 ==========
 MODELS = {
-    "text": "M2-preview-1004",
+    "text": "MiniMax-M1",
     "tts": "speech-2.5-hd-preview",
     "voice_clone": "speech-02-turbo",
     "image": "image-01-live"
