@@ -631,7 +631,10 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:5001/api';
+        // 使用相对路径，适配开发和生产环境
+        // 开发环境：需要配置反向代理或直接访问后端
+        // 生产环境：通过 Nginx 反向代理 /api 到后端服务
+        const API_BASE = '/api';
         
         let currentTab = 'topic';
         let voiceIds = {

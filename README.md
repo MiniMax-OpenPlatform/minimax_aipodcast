@@ -35,6 +35,28 @@
 - **npm**: 6+
 - **ffmpeg**: 用于音频处理
 
+### ⚙️ 环境配置
+
+项目使用相对路径配置，可适应开发和生产环境：
+
+**开发环境**：
+- 前端通过 `package.json` 的 `proxy` 配置自动代理到后端 (http://localhost:5001)
+- 无需额外配置，开箱即用
+
+**生产环境**：
+- 通过 Nginx 反向代理 `/api` 到后端服务
+- 前端使用相对路径请求，自动适配域名
+- 详见 [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+如需自定义 API 地址，可在 `frontend/.env` 中配置：
+```bash
+# 使用同源（推荐，通过 Nginx 反向代理）
+REACT_APP_API_URL=
+
+# 或指定完整 URL（跨域部署时）
+# REACT_APP_API_URL=http://your-backend-domain:5001
+```
+
 ### 一键启动
 
 ```bash

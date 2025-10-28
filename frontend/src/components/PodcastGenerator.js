@@ -39,8 +39,10 @@ const PodcastGenerator = () => {
   const audioRef0 = useRef(null);
   const audioRef1 = useRef(null);
 
-  // API 基础 URL（从环境变量读取，默认为 localhost）
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+  // API 基础 URL（从环境变量读取，默认为空字符串表示同源）
+  // 开发环境通过 package.json 的 proxy 配置代理到 http://localhost:5001
+  // 生产环境通过 Nginx 反向代理到后端服务
+  const API_URL = process.env.REACT_APP_API_URL || '';
 
   // 处理文件上传
   const handlePdfChange = (e) => {

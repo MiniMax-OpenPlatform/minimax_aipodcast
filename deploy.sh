@@ -49,9 +49,10 @@ echo "🎨 配置前端..."
 cd ../frontend
 npm install
 
-# 创建生产环境配置
+# 创建生产环境配置（使用相对路径，通过 Nginx 反向代理）
 cat > .env.production << 'EOF'
-REACT_APP_API_URL=http://47.103.24.213:5001
+# 留空表示使用同源请求，通过 Nginx 反向代理到后端
+REACT_APP_API_URL=
 EOF
 
 # 构建前端
@@ -78,18 +79,22 @@ server {
         try_files $uri /index.html;
     }
 
-    # 后端 API
+    # 后端 API（反向代理到后端服务）
     location /api/ {
-        proxy_pass http://localhost:5001;
+        proxy_pass http://localhost:5001/api/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
 
         # SSE 支持
         proxy_buffering off;
         proxy_cache off;
+        proxy_read_timeout 600s;
     }
 
     # 静态资源

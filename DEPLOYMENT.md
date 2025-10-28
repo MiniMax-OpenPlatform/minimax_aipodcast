@@ -60,9 +60,18 @@ pip install Flask Flask-Cors requests pydub PyPDF2 beautifulsoup4 lxml
 ```bash
 cd ~/ai_podcast_v1/frontend
 npm install
-echo "REACT_APP_API_URL=http://47.103.24.213:5001" > .env.production
+
+# 创建生产环境配置（使用相对路径，通过 Nginx 反向代理）
+cat > .env.production << 'EOF'
+# 留空表示使用同源请求，通过 Nginx 反向代理到后端
+REACT_APP_API_URL=
+EOF
+
+# 构建前端
 npm run build
 ```
+
+> **说明**：使用相对路径配置，前端将通过 Nginx 反向代理访问后端 API，无需硬编码服务器地址，更安全且易于维护。
 
 ### 6️⃣ 启动服务
 
