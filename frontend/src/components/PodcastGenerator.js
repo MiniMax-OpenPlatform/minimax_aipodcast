@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import './PodcastGenerator.css';
 
 const PodcastGenerator = () => {
@@ -125,6 +125,28 @@ const PodcastGenerator = () => {
       } else {
         setPlayer1Url(newUrl);
       }
+    }
+  };
+
+  // 通用下载函数 - 解决跨域下载问题
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(`${API_URL}${url}`);
+      if (!response.ok) {
+        throw new Error(`下载失败: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('下载失败:', error);
+      alert(`下载失败: ${error.message}`);
     }
   };
 
@@ -289,10 +311,17 @@ const PodcastGenerator = () => {
         break;
 
       case 'complete':
-        // 不覆盖 progressiveAudioUrl，因为渐进式文件已经是最终版本
-        // 只设置 audioUrl 和 scriptUrl 用于下载按钮
-        setAudioUrl(data.audio_url);
-        setScriptUrl(data.script_url);
+        // 设置最终音频和脚本的下载 URL
+        console.log('[complete] 收到完成事件:', data);
+        console.log('[complete] audio_url:', data.audio_url);
+        console.log('[complete] script_url:', data.script_url);
+        
+        if (data.audio_url) {
+          setAudioUrl(data.audio_url);
+        }
+        if (data.script_url) {
+          setScriptUrl(data.script_url);
+        }
         setIsGenerating(false);
         setProgress('播客生成完成！');
         addLog('🎉 播客生成完成！可以下载了');
@@ -572,18 +601,27 @@ const PodcastGenerator = () => {
       {/* 下载按钮 */}
       {audioUrl && (
         <div className="download-section">
-          <a href={`${API_URL}${audioUrl}`} download className="download-btn">
+          <button 
+            onClick={() => handleDownload(audioUrl, 'podcast.mp3')} 
+            className="download-btn"
+          >
             ⬇️ 下载音频
-          </a>
+          </button>
           {scriptUrl && (
-            <a href={`${API_URL}${scriptUrl}`} download className="download-btn">
+            <button 
+              onClick={() => handleDownload(scriptUrl, 'script.txt')} 
+              className="download-btn"
+            >
               ⬇️ 下载脚本
-            </a>
+            </button>
           )}
           {coverImage && (
-            <a href={`${API_URL}/download/cover?url=${encodeURIComponent(coverImage)}`} download className="download-btn">
+            <button 
+              onClick={() => handleDownload(`/download/cover?url=${encodeURIComponent(coverImage)}`, 'cover.png')} 
+              className="download-btn"
+            >
               ⬇️ 下载封面
-            </a>
+            </button>
           )}
         </div>
       )}

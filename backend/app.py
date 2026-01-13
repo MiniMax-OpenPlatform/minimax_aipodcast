@@ -7,9 +7,9 @@ import os
 import sys
 import uuid
 import json
+import time
 import logging
-import threading
-from flask import Flask, request, jsonify, Response, send_file, send_from_directory
+from flask import Flask, request, jsonify, Response, send_file, send_from_directory, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -218,6 +218,8 @@ def generate_podcast():
 
             speaker1_voice_id = voices_result["speaker1"]
             speaker2_voice_id = voices_result["speaker2"]
+            logger.info(f"Speaker1 Voice ID: {speaker1_voice_id}")
+            logger.info(f"Speaker2 Voice ID: {speaker2_voice_id}")
 
             # Step 3: 流式生成播客
             for event in podcast_generator.generate_podcast_stream(
@@ -272,6 +274,12 @@ def upload_audio():
 def download_audio(filename):
     """下载音频文件"""
     try:
+        file_path = os.path.join(OUTPUT_DIR, filename)
+        if not os.path.exists(file_path):
+            logger.error(f"音频文件不存在: {file_path}")
+            return jsonify({"error": f"文件不存在: {filename}"}), 404
+        
+        logger.info(f"下载音频文件: {file_path}")
         return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
     except Exception as e:
         logger.error(f"下载音频失败: {str(e)}")
@@ -282,6 +290,12 @@ def download_audio(filename):
 def download_script(filename):
     """下载脚本文件"""
     try:
+        file_path = os.path.join(OUTPUT_DIR, filename)
+        if not os.path.exists(file_path):
+            logger.error(f"脚本文件不存在: {file_path}")
+            return jsonify({"error": f"文件不存在: {filename}"}), 404
+        
+        logger.info(f"下载脚本文件: {file_path}")
         return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
     except Exception as e:
         logger.error(f"下载脚本失败: {str(e)}")
@@ -302,11 +316,9 @@ def download_cover():
         response.raise_for_status()
 
         # 生成文件名
-        import time
         filename = f"podcast_cover_{int(time.time())}.jpg"
 
         # 返回图片数据，设置下载头
-        from flask import make_response
         resp = make_response(response.content)
         resp.headers['Content-Type'] = 'image/jpeg'
         resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'

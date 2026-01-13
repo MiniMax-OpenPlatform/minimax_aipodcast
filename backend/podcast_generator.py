@@ -17,9 +17,7 @@ from config import (
     OUTPUT_DIR
 )
 from minimax_client import minimax_client
-from content_parser import content_parser
-from voice_manager import voice_manager
-from audio_utils import create_podcast_with_bgm, save_sentence_audio
+from audio_utils import create_podcast_with_bgm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -88,10 +86,15 @@ class PodcastGenerator:
         Yields:
             包含各种事件的字典
         """
-        # 语音 ID 映射
+        # 语音 ID 映射（支持多种格式：Speaker1/Speaker2 和 Mini/Max）
         voice_mapping = {
             "Speaker1": speaker1_voice_id,
-            "Speaker2": speaker2_voice_id
+            "Speaker2": speaker2_voice_id,
+            # LLM 有时会直接使用主持人名称而非 Speaker1/Speaker2
+            "Mini": speaker1_voice_id,
+            "Max": speaker2_voice_id,
+            "mini": speaker1_voice_id,
+            "max": speaker2_voice_id,
         }
 
         # 存储所有音频 chunk
@@ -568,7 +571,10 @@ class PodcastGenerator:
             script_path = os.path.join(OUTPUT_DIR, script_filename)
             with open(script_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(all_script_lines))
+            logger.info(f"脚本已保存到: {script_path}")
 
+            # 发送完成事件
+            logger.info(f"发送 complete 事件: audio_url=/download/audio/{output_filename}, script_url=/download/script/{script_filename}")
             yield {
                 "type": "complete",
                 "audio_path": output_path,
@@ -579,12 +585,14 @@ class PodcastGenerator:
                 "trace_ids": trace_ids,
                 "message": "播客生成完成！"
             }
+            logger.info("complete 事件已发送")
 
         except Exception as e:
-            logger.error(f"音频合并失败: {str(e)}")
+            logger.error(f"音频合并或脚本保存失败: {str(e)}")
+            logger.exception("详细错误:")
             yield {
                 "type": "error",
-                "message": f"音频合并失败: {str(e)}"
+                "message": f"音频处理失败: {str(e)}"
             }
 
 

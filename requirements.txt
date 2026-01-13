@@ -1,9 +1,18 @@
+# Flask Web Framework
 Flask==3.0.0
 flask-cors==4.0.0
-requests==2.31.0
-beautifulsoup4==4.12.2
-PyPDF2==3.0.1
-pydub==0.25.1
-lxml==4.9.3
 Werkzeug==3.0.1
 
+# HTTP Requests
+requests==2.31.0
+
+# Content Parsing
+beautifulsoup4==4.12.2
+lxml==4.9.3
+PyPDF2==3.0.1
+
+# Audio Processing
+pydub==0.25.1
+
+# Environment Variables
+python-dotenv==1.0.0
