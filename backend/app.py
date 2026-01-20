@@ -344,7 +344,7 @@ def generate_podcast():
             logger.info(f"Speaker1 Voice ID: {final_speaker1_voice_id}, 自定义: {speaker1_is_custom_voice_id}")
             logger.info(f"Speaker2 Voice ID: {final_speaker2_voice_id}, 自定义: {speaker2_is_custom_voice_id}")
 
-            # Step 3: 流式生成播客
+            # Step 3: 生成播客
             for event in podcast_generator.generate_podcast_stream(
                 content=merged_content,
                 speaker1_voice_id=final_speaker1_voice_id,
