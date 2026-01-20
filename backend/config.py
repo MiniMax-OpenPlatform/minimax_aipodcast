@@ -21,13 +21,13 @@ DEFAULT_VOICES = {
     "mini": {
         "name": "Mini",
         "gender": "female",
-        "voice_id": "moss_audio_aaa1346a-7ce7-11f0-8e61-2e6e3c7ee85d",
+        "voice_id": "Chinese (Mandarin)_Gentle_Senior",
         "description": "女声 - 活泼亲切"
     },
     "max": {
         "name": "Max",
         "gender": "male",
-        "voice_id": "moss_audio_ce44fc67-7ce3-11f0-8de5-96e35d26fb85",
+        "voice_id": "Boyan_new_platform",
         "description": "男声 - 稳重专业"
     }
 }
@@ -43,7 +43,7 @@ BGM_FILES = {
 
 # 欢迎语音配置
 WELCOME_TEXT = "欢迎收听MiniMax AI播客节目"
-WELCOME_VOICE_ID = DEFAULT_VOICES["mini"]["voice_id"]  # 使用 Mini 音色
+# WELCOME_VOICE_ID = DEFAULT_VOICES["mini"]["voice_id"]  # 直接使用设定的speak1音色
 
 # ========== MiniMax API 端点配置 ==========
 MINIMAX_API_BASE = "https://api.minimax.io"
@@ -52,12 +52,17 @@ MINIMAX_API_ENDPOINTS = {
     "tts": "https://api.minimaxi.com/v1/t2a_v2",
     "voice_clone": "https://api.minimax.chat/v1/voice_clone",
     "file_upload": "https://api.minimax.chat/v1/files/upload",
-    "image_generation": "https://api.minimaxi.com/v1/image_generation"
+    "image_generation": "https://api.minimaxi.com/v1/image_generation",
+    "get_voice": "https://api.minimaxi.com/v1/get_voice"  # 查询可用音色列表
 }
+
+# ========== OpenAI 兼容客户端配置 ==========
+# MiniMax 的 OpenAI API 兼容端点基础 URL
+OPENAI_BASE_URL = "https://api.minimaxi.com/v1"
 
 # ========== 模型配置 ==========
 MODELS = {
-    "text": "MiniMax-M2-Preview",
+    "text": "MiniMax-M2.1",
     "tts": "speech-2.5-hd-preview",
     "voice_clone": "speech-02-turbo",
     "image": "image-01-live"

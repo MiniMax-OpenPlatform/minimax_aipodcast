@@ -6,6 +6,9 @@ Werkzeug==3.0.1
 # HTTP Requests
 requests==2.31.0
 
+# OpenAI API Client (for MiniMax OpenAI-compatible API)
+openai>=1.0.0
+
 # Content Parsing
 beautifulsoup4==4.12.2
 lxml==4.9.3

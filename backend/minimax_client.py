@@ -7,6 +7,7 @@ import requests
 import json
 import logging
 from typing import Iterator, Dict, Any, Optional
+from openai import OpenAI
 from config import (
     MINIMAX_TEXT_API_KEY,
     MINIMAX_OTHER_API_KEY,
@@ -14,7 +15,8 @@ from config import (
     MODELS,
     TTS_AUDIO_SETTINGS,
     IMAGE_GENERATION_CONFIG,
-    TIMEOUTS
+    TIMEOUTS,
+    OPENAI_BASE_URL
 )
 
 # 配置日志
@@ -30,6 +32,24 @@ class MinimaxClient:
         self.other_api_key = MINIMAX_OTHER_API_KEY
         self.endpoints = MINIMAX_API_ENDPOINTS
         self.models = MODELS
+        # 初始化默认的 OpenAI 客户端
+        self._default_client = self._create_openai_client()
+
+    def _create_openai_client(self, api_key: Optional[str] = None) -> OpenAI:
+        """
+        创建 OpenAI 兼容客户端
+
+        Args:
+            api_key: 可选的自定义 API Key，如果不提供则使用默认配置
+
+        Returns:
+            OpenAI 客户端实例
+        """
+        key = api_key if api_key else self.text_api_key
+        return OpenAI(
+            api_key=key,
+            base_url=OPENAI_BASE_URL
+        )
 
     def _get_headers(self, api_type: str = "other", api_key: Optional[str] = None) -> Dict[str, str]:
         """
@@ -99,15 +119,16 @@ class MinimaxClient:
 1. 对话风格：轻松幽默，自然流畅
 2. 说话人：Speaker1（Mini，活泼亲切，引导话题）和 Speaker2（Max，稳重专业，深度分析）
 3. 文本要自然，包含适当的重复、语气词、停顿等真人对话特征
-4. 每句话单独一行，格式为：Speaker1: 内容 或 Speaker2: 内容
+4. 每句话单独一行，格式必须为：Speaker1: 内容 或 Speaker2: 内容（注意：使用英文冒号+空格，不要使用中文冒号）
 5. 开场白要吸引人，结尾要有总结
 6. 不要有多余的说明文字，只输出对话内容
 7. 对话内容中不能包含（笑）（停顿）（思考）等动作、心理活动或场景描述，只生成纯对话文本
 
+注意：请严格遵守格式要求，每行必须以 "Speaker1: " 或 "Speaker2: " 开头（注意是英文冒号+空格）。
+
 材料内容：
 {content}
-
-请开始生成播客脚本。再次强调：输出的对话内容中绝对不能包含任何括号内的动作描述、心理活动或场景说明，如（笑）（停顿）（思考）等，只生成纯对话文本。"""
+"""
 
         payload = {
             "model": self.models["text"],
@@ -118,65 +139,44 @@ class MinimaxClient:
             "stream": True
         }
 
-        logger.info(f"发送脚本生成请求到: {url}")
+        logger.info(f"发送脚本生成请求到: {self.endpoints['text_completion']}")
         logger.info(f"请求模型: {self.models['text']}")
 
         trace_id = None
         try:
-            response = requests.post(
-                url,
-                headers=headers,
-                json=payload,
-                stream=True,
-                timeout=TIMEOUTS["script_generation"]
+            # 使用 OpenAI 客户端进行流式调用
+            client = self._create_openai_client(api_key=api_key)
+            stream = client.chat.completions.create(
+                model=self.models["text"],
+                messages=[
+                    {"role": "system", "name": "MiniMax AI"},
+                    {"role": "user", "content": prompt}
+                ],
+                stream=True  # 流式请求
             )
-
-            # 立即提取 Trace ID（即使失败也要记录）
-            trace_id = self._extract_trace_id(response)
-
-            logger.info(f"脚本生成响应状态码: {response.status_code}")
-
-            response.raise_for_status()
 
             logger.info("开始流式读取脚本内容...")
 
             # 流式读取响应
             chunk_count = 0
-            for line in response.iter_lines():
-                if line:
-                    line = line.decode('utf-8')
-                    if line.startswith('data:'):
-                        try:
-                            data = json.loads(line[5:].strip())
-
-                            # 检查是否有 base_resp 错误
-                            if 'base_resp' in data:
-                                base_resp = data.get('base_resp', {})
-                                if base_resp.get('status_code') != 0:
-                                    error_msg = base_resp.get('status_msg', '未知错误')
-                                    logger.error(f"脚本生成 API 返回错误: {error_msg}")
-                                    yield {
-                                        "type": "error",
-                                        "message": f"脚本生成失败: {error_msg}",
-                                        "trace_id": trace_id
-                                    }
-                                    return
-
-                            if 'choices' in data and len(data['choices']) > 0:
-                                delta = data['choices'][0].get('delta', {})
-                                content_chunk = delta.get('content', '')
-                                if content_chunk:
-                                    chunk_count += 1
-                                    if chunk_count % 10 == 0:
-                                        logger.info(f"已接收 {chunk_count} 个脚本 chunk")
-                                    yield {
-                                        "type": "script_chunk",
-                                        "content": content_chunk,
-                                        "trace_id": trace_id
-                                    }
-                        except json.JSONDecodeError as je:
-                            logger.warning(f"JSON 解析失败: {line[:100]}")
-                            continue
+            for chunk in stream:
+                if chunk:
+                    # 解析 chunk 数据
+                    chunk_data = chunk.model_dump()
+                    
+                    # 检查是否有 choices
+                    if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
+                        delta = chunk_data['choices'][0].get('delta', {})
+                        content_chunk = delta.get('content', '')
+                        if content_chunk:
+                            chunk_count += 1
+                            if chunk_count % 10 == 0:
+                                logger.info(f"已接收 {chunk_count} 个脚本 chunk")
+                            yield {
+                                "type": "script_chunk",
+                                "content": content_chunk,
+                                "trace_id": trace_id
+                            }
 
             logger.info(f"脚本生成完成，共接收 {chunk_count} 个 chunk")
 
@@ -186,25 +186,6 @@ class MinimaxClient:
                 "trace_id": trace_id
             }
 
-        except requests.exceptions.Timeout:
-            error_msg = f"脚本生成超时（{TIMEOUTS['script_generation']}秒）"
-            logger.error(error_msg)
-            yield {
-                "type": "error",
-                "message": error_msg,
-                "trace_id": trace_id
-            }
-        except requests.exceptions.RequestException as e:
-            error_msg = f"脚本生成网络请求失败: {str(e)}"
-            logger.error(error_msg)
-            # 尝试从异常中提取 Trace ID
-            if trace_id is None and hasattr(e, 'response') and e.response is not None:
-                trace_id = self._extract_trace_id(e.response)
-            yield {
-                "type": "error",
-                "message": error_msg,
-                "trace_id": trace_id
-            }
         except Exception as e:
             error_msg = f"脚本生成失败: {str(e)}"
             logger.error(error_msg)
@@ -212,6 +193,132 @@ class MinimaxClient:
             yield {
                 "type": "error",
                 "message": error_msg,
+                "trace_id": trace_id
+            }
+
+    def generate_script(self, content: str, duration_min: int = 3, duration_max: int = 5,
+                        api_key: Optional[str] = None) -> Dict[str, Any]:
+        """
+        非流式生成播客脚本（一次性返回完整脚本）
+
+        优势：
+        - 避免流式传输中的内容丢失问题
+        - 简化处理逻辑，提高成功率
+        - 更容易错误处理和重试
+
+        Args:
+            content: 解析后的内容文本
+            duration_min: 目标最短时长（分钟）
+            duration_max: 目标最长时长（分钟）
+            api_key: 可选的自定义 API Key
+
+        Returns:
+            包含脚本内容和相关信息的字典
+        """
+        logger.info(f"开始非流式生成播客脚本，内容长度: {len(content)} 字符，目标时长: {duration_min}-{duration_max} 分钟")
+
+        url = self.endpoints["text_completion"]
+        headers = self._get_headers("text", api_key=api_key)
+
+        # 构建 prompt（与流式版本相同）
+        prompt = f"""请基于以下材料，生成一段 {duration_min}-{duration_max} 分钟的双人播客对话脚本。
+
+播客节目信息：
+- 节目名称：MiniMax AI 播客节目
+- 主持人：Mini（Speaker1）和 Max（Speaker2）
+
+要求：
+1. 对话风格：轻松幽默，自然流畅
+2. 说话人：Speaker1（Mini，活泼亲切，引导话题）和 Speaker2（Max，稳重专业，深度分析）
+3. 文本要自然，包含适当的重复、语气词、停顿等真人对话特征
+4. 每句话单独一行，格式必须为：Speaker1: 内容 或 Speaker2: 内容（注意：使用英文冒号+空格，不要使用中文冒号）
+5. 开场白要吸引人，结尾要有总结
+6. 不要有多余的说明文字，只输出对话内容
+7. 对话内容中不能包含（笑）（停顿）（思考）等动作、心理活动或场景描述，只生成纯对话文本
+
+注意：请严格遵守格式要求，每行必须以 "Speaker1: " 或 "Speaker2: " 开头（注意是英文冒号+空格）。
+
+材料内容：
+{content}
+"""
+
+        payload = {
+            "model": self.models["text"],
+            "messages": [
+                {"role": "system", "name": "MiniMax AI"},
+                {"role": "user", "content": prompt}
+            ],
+            "stream": False  # 非流式
+        }
+
+        trace_id = None
+        try:
+            logger.info(f"发送脚本生成请求到: {self.endpoints['text_completion']}")
+            logger.info(f"请求模型: {self.models['text']}")
+
+            # 使用 OpenAI 客户端进行非流式调用
+            client = self._create_openai_client(api_key=api_key)
+            response = client.chat.completions.create(
+                model=self.models["text"],
+                messages=[
+                    {"role": "system", "name": "你是一个专业的播客脚本编写助手。"},
+                    {"role": "user", "content": prompt}
+                ],
+                stream=False  # 非流式请求
+            )
+
+            logger.info(f"脚本生成响应: {response.model_dump_json()}")
+
+            # 解析响应
+            result = response.model_dump()
+            
+            # 检查是否有错误（通过 checking if response is None or has error indicators）
+            # OpenAI 客户端会抛出异常，所以这里主要是提取内容
+
+            # 提取完整的脚本内容
+            if 'choices' in result and len(result['choices']) > 0:
+                message = result['choices'][0].get('message', {})
+                script_content = message.get('content', '').strip()
+
+                if not script_content:
+                    logger.error("脚本生成为空内容")
+                    return {
+                        "success": False,
+                        "error": "脚本生成为空内容",
+                        "trace_id": trace_id
+                    }
+
+                logger.info(f"脚本生成成功，内容长度: {len(script_content)} 字符")
+
+                # 分析脚本结构
+                lines = script_content.split('\n')
+                valid_lines = [l for l in lines if l.strip() and ':' in l]
+
+                return {
+                    "success": True,
+                    "script": script_content,
+                    "trace_id": trace_id,
+                    "stats": {
+                        "total_lines": len(lines),
+                        "valid_lines": len(valid_lines),
+                        "char_count": len(script_content)
+                    }
+                }
+            else:
+                logger.error(f"脚本生成响应格式错误: {result}")
+                return {
+                    "success": False,
+                    "error": "脚本生成响应格式错误",
+                    "trace_id": trace_id
+                }
+
+        except Exception as e:
+            error_msg = f"脚本生成失败: {str(e)}"
+            logger.error(error_msg)
+            logger.exception("详细错误信息:")
+            return {
+                "success": False,
+                "error": error_msg,
                 "trace_id": trace_id
             }
 
@@ -410,60 +517,66 @@ class MinimaxClient:
                 "message": f"音色克隆失败: {str(e)}"
             }
 
-    def generate_cover_image(self, content_summary: str, api_key: Optional[str] = None) -> Dict[str, Any]:
+    def generate_cover_image(self, content_summary: str, script_content: str = "", api_key: Optional[str] = None) -> Dict[str, Any]:
         """
         生成播客封面图
 
         Args:
             content_summary: 内容摘要
+            script_content: 完整的播客脚本内容（可选，用于提取主题和风格）
             api_key: 可选的自定义 API Key
 
         Returns:
             包含图片 URL 和 trace_id 的字典
         """
         # Step 1: 生成图片 prompt
-        prompt_generation_prompt = f"""基于以下播客内容摘要，生成一个简洁的图片描述 prompt。
+        prompt_generation_prompt = f"""请基于以下信息，为播客生成一个高质量的封面图描述 prompt。
 
-要求：
-1. 描述要简洁直观，30字以内
-
-播客内容摘要：
+【播客内容摘要】
 {content_summary}
 
-请直接输出图片描述 prompt（不要有多余说明）："""
+【播客脚本内容】
+{script_content}
+
+【任务要求】
+1. 从播客内容中提取 3-5 个核心主题关键词
+2. 确定播客的整体风格（科技、商业、教育、娱乐、生活等）
+3. 设计一个吸引人的封面场景，包含：
+   - 核心主题元素（可以用图标、插画或场景来表达）
+   - 播客节目名称或主题暗示
+   - 适合的色彩搭配
+4. 风格要求：
+   - 漫画/插画风格
+   - 现代简洁，有设计感
+   - 色彩鲜明，视觉冲击力强
+5. 最终 prompt 应该是 50-100 字的中文描述，直接用于 AI 绘图
+
+【输出格式】
+请直接输出封面图描述 prompt，不要有任何前缀或说明文字。
+提示词应该包含：场景描述 + 风格关键词 + 色彩描述
+"""
 
         text_trace_id = None
         try:
             # Step 1: 调用 M2 生成 prompt（文本模型使用用户提供的 API Key）
             logger.info("开始生成封面图 Prompt...")
-            url_text = self.endpoints["text_completion"]
-            headers_text = self._get_headers("text", api_key=api_key)
-
-            payload_text = {
-                "model": self.models["text"],
-                "messages": [
-                    {"role": "system", "name": "MiniMax AI"},
+            
+            # 使用 OpenAI 客户端生成 prompt
+            client = self._create_openai_client(api_key=api_key)
+            response = client.chat.completions.create(
+                model=self.models["text"],
+                messages=[
+                    {"role": "system", "name": "你是一个专业的播客封面设计师。"},
                     {"role": "user", "content": prompt_generation_prompt}
                 ],
-                "stream": False
-            }
-
-            logger.info(f"发送 Prompt 生成请求到: {url_text}")
-            response_text = requests.post(
-                url_text,
-                headers=headers_text,
-                json=payload_text,
-                timeout=TIMEOUTS["cover_prompt_generation"]
+                stream=False
             )
 
-            # 立即提取 Trace ID
-            text_trace_id = self._extract_trace_id(response_text)
-            logger.info(f"Prompt 生成响应状态码: {response_text.status_code}")
+            logger.info(f"Prompt 生成响应: {response.model_dump_json()}")
 
-            response_text.raise_for_status()
-
-            text_result = response_text.json()
-            image_prompt = text_result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            # 提取生成的 prompt
+            result = response.model_dump()
+            image_prompt = result.get("choices", [{}])[0].get("message", {}).get("content", "")
 
             logger.info(f"生成的图片 Prompt: {image_prompt}")
 
@@ -586,6 +699,101 @@ class MinimaxClient:
                 "message": f"封面生成失败: {error_msg}",
                 "text_trace_id": text_trace_id if 'text_trace_id' in locals() else None,
                 "image_trace_id": None
+            }
+
+    def get_available_voices(self, voice_type: str = "all", api_key: Optional[str] = None) -> Dict[str, Any]:
+        """
+        查询当前账号下可用的音色列表
+
+        Args:
+            voice_type: 音色类型，支持 system, voice_cloning, voice_generation, all
+            api_key: 可选的自定义 API Key
+
+        Returns:
+            包含音色列表的字典
+        """
+        url = self.endpoints["get_voice"]
+        headers = self._get_headers("other", api_key=api_key)
+
+        payload = {
+            "voice_type": voice_type
+        }
+
+        trace_id = None
+        try:
+            logger.info(f"开始查询可用音色列表，类型: {voice_type}")
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=TIMEOUTS["url_parsing"]
+            )
+
+            # 立即提取 Trace ID
+            trace_id = self._extract_trace_id(response)
+            logger.info(f"查询音色列表响应状态码: {response.status_code}")
+
+            response.raise_for_status()
+            result = response.json()
+
+            # 检查 base_resp 错误
+            base_resp = result.get('base_resp', {})
+            if base_resp.get('status_code') != 0:
+                error_msg = base_resp.get('status_msg', '未知错误')
+                logger.error(f"查询音色列表 API 返回错误: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "message": f"查询音色列表失败: {error_msg}",
+                    "trace_id": trace_id
+                }
+
+            # 提取所有 voice_id
+            all_voice_ids = []
+            for voice_category in ['system_voice', 'voice_cloning', 'voice_generation']:
+                voices = result.get(voice_category, [])
+                for voice in voices:
+                    voice_id = voice.get('voice_id')
+                    if voice_id:
+                        all_voice_ids.append({
+                            'voice_id': voice_id,
+                            'name': voice.get('voice_name', ''),
+                            'category': voice_category,
+                            'description': voice.get('description', []),
+                            'created_time': voice.get('created_time', '')
+                        })
+
+            logger.info(f"查询到 {len(all_voice_ids)} 个可用音色")
+            return {
+                "success": True,
+                "voices": all_voice_ids,
+                "voice_ids": [v['voice_id'] for v in all_voice_ids],  # 便于快速查找
+                "trace_id": trace_id,
+                "message": f"成功获取 {len(all_voice_ids)} 个可用音色"
+            }
+
+        except requests.exceptions.RequestException as e:
+            error_msg = f"网络请求失败: {str(e)}"
+            logger.error(f"查询可用音色失败: {error_msg}")
+
+            image_trace_id = None
+            if hasattr(e, 'response') and e.response is not None:
+                image_trace_id = self._extract_trace_id(e.response)
+
+            return {
+                "success": False,
+                "error": error_msg,
+                "message": f"查询可用音色失败: {error_msg}",
+                "trace_id": trace_id if 'trace_id' in locals() else None
+            }
+        except Exception as e:
+            error_msg = str(e) if str(e) else "未知错误"
+            logger.error(f"查询可用音色异常: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "message": f"查询可用音色失败: {error_msg}",
+                "trace_id": trace_id if 'trace_id' in locals() else None
             }
 
 

@@ -48,6 +48,19 @@ def health_check():
     return jsonify({"status": "ok", "message": "AI 播客生成服务运行中"})
 
 
+@app.route('/api/check-config', methods=['GET'])
+def check_config():
+    """
+    检查配置状态接口
+    返回是否有环境变量的 API Key
+    """
+    from config import MINIMAX_API_KEY
+    return jsonify({
+        "has_env_api_key": bool(MINIMAX_API_KEY and MINIMAX_API_KEY.strip()),
+        "message": "环境变量中已配置 API Key，前端可留空" if MINIMAX_API_KEY and MINIMAX_API_KEY.strip() else "未配置环境变量 API Key，请在前端填写"
+    })
+
+
 @app.route('/api/default-voices', methods=['GET'])
 def get_default_voices():
     """获取默认音色列表"""
@@ -67,11 +80,13 @@ def generate_podcast():
     - text_input: 文本输入（可选）
     - url: 网址输入（可选）
     - pdf_file: PDF 文件（可选）
-    - speaker1_type: "default" 或 "custom"
+    - speaker1_type: "default" 或 "custom" 或 "voice_id"
     - speaker1_voice_name: "mini" 或 "max"（default 时）
+    - speaker1_voice_id: Voice ID（voice_id 时）
     - speaker1_audio: 音频文件（custom 时）
-    - speaker2_type: "default" 或 "custom"
+    - speaker2_type: "default" 或 "custom" 或 "voice_id"
     - speaker2_voice_name: "mini" 或 "max"（default 时）
+    - speaker2_voice_id: Voice ID（voice_id 时）
     - speaker2_audio: 音频文件（custom 时）
     """
     # 在请求上下文中提取所有数据
@@ -79,14 +94,21 @@ def generate_podcast():
     logger.info(f"开始生成播客，Session ID: {session_id}")
 
     # 提取 API Key
+    from config import MINIMAX_API_KEY
     user_api_key = request.form.get('api_key', '').strip()
+
+    # 如果用户未提供 API Key，尝试使用环境变量的 API Key
     if not user_api_key:
-        def error_gen():
-            yield "data: " + json.dumps({
-                "type": "error",
-                "message": "未提供 API Key"
-            }) + "\n\n"
-        return Response(error_gen(), mimetype='text/event-stream')
+        if MINIMAX_API_KEY and MINIMAX_API_KEY.strip():
+            user_api_key = MINIMAX_API_KEY.strip()
+            logger.info("用户未提供 API Key，使用环境变量中的 API Key")
+        else:
+            def error_gen():
+                yield "data: " + json.dumps({
+                    "type": "error",
+                    "message": "未提供 API Key，请在前端填写或配置环境变量 MINIMAX_API_KEY"
+                }) + "\n\n"
+            return Response(error_gen(), mimetype='text/event-stream')
 
     # 提取表单数据
     text_input = request.form.get('text_input', '').strip()
@@ -106,24 +128,89 @@ def generate_podcast():
     # 提取音色配置
     speaker1_type = request.form.get('speaker1_type', 'default')
     speaker1_voice_name = request.form.get('speaker1_voice_name', 'mini')
+    speaker1_voice_id = request.form.get('speaker1_voice_id', '').strip()
     speaker1_audio_path = None
+
+    if speaker1_type == 'voice_id':
+        logger.info(f"Speaker1 使用自定义 Voice ID: {speaker1_voice_id}")
+
     if speaker1_type == 'custom' and 'speaker1_audio' in request.files:
         audio_file = request.files['speaker1_audio']
         if audio_file and allowed_file(audio_file.filename, ALLOWED_AUDIO_EXTENSIONS):
-            filename = secure_filename(audio_file.filename)
-            speaker1_audio_path = os.path.join(UPLOAD_DIR, f"{session_id}_speaker1_{filename}")
+            # 调试：记录原始文件名
+            original_filename = audio_file.filename
+            logger.info(f"Speaker1 原始文件名: {original_filename}")
+
+            # 先提取原始扩展名，再安全处理文件名
+            ext = os.path.splitext(original_filename)[1].lower() if '.' in original_filename else ''
+            if not ext:
+                logger.error(f"文件 {original_filename} 缺少扩展名")
+                def error_gen():
+                    yield "data: " + json.dumps({
+                        "type": "error",
+                        "message": f"文件缺少扩展名，请选择 mp3、wav 或 m4a 格式的音频文件"
+                    }) + "\n\n"
+                return Response(error_gen(), mimetype='text/event-stream')
+
+            # 调试：记录扩展名
+            logger.info(f"Speaker1 文件扩展名: {ext}")
+
+            # 安全处理文件名主体部分
+            base_name = secure_filename(os.path.splitext(original_filename)[0])
+            if not base_name:
+                base_name = f"audio_{session_id[:8]}"  # 如果安全处理后为空，使用默认名称
+
+            logger.info(f"Speaker1 处理后的基础名: {base_name}")
+
+            # 重新组合：确保保留扩展名
+            safe_filename = f"{base_name}{ext}"
+            speaker1_audio_path = os.path.join(UPLOAD_DIR, f"{session_id}_speaker1_{safe_filename}")
             audio_file.save(speaker1_audio_path)
+            logger.info(f"Speaker1 音频已保存: {speaker1_audio_path}")
 
     speaker2_type = request.form.get('speaker2_type', 'default')
     speaker2_voice_name = request.form.get('speaker2_voice_name', 'max')
+    speaker2_voice_id = request.form.get('speaker2_voice_id', '').strip()
     speaker2_audio_path = None
+
+    if speaker2_type == 'voice_id':
+        logger.info(f"Speaker2 使用自定义 Voice ID: {speaker2_voice_id}")
+
     if speaker2_type == 'custom' and 'speaker2_audio' in request.files:
         audio_file = request.files['speaker2_audio']
         if audio_file and allowed_file(audio_file.filename, ALLOWED_AUDIO_EXTENSIONS):
-            filename = secure_filename(audio_file.filename)
-            speaker2_audio_path = os.path.join(UPLOAD_DIR, f"{session_id}_speaker2_{filename}")
-            audio_file.save(speaker2_audio_path)
+            # 调试：记录原始文件名
+            original_filename = audio_file.filename
+            logger.info(f"Speaker2 原始文件名: {original_filename}")
 
+            # 先提取原始扩展名，再安全处理文件名
+            ext = os.path.splitext(original_filename)[1].lower() if '.' in original_filename else ''
+            if not ext:
+                logger.error(f"文件 {original_filename} 缺少扩展名")
+                def error_gen():
+                    yield "data: " + json.dumps({
+                        "type": "error",
+                        "message": f"文件缺少扩展名，请选择 mp3、wav 或 m4a 格式的音频文件"
+                    }) + "\n\n"
+                return Response(error_gen(), mimetype='text/event-stream')
+
+            # 调试：记录扩展名
+            logger.info(f"Speaker2 文件扩展名: {ext}")
+
+            # 安全处理文件名主体部分
+            base_name = secure_filename(os.path.splitext(original_filename)[0])
+            if not base_name:
+                base_name = f"audio_{session_id[:8]}"  # 如果安全处理后为空，使用默认名称
+
+            logger.info(f"Speaker2 处理后的基础名: {base_name}")
+
+            # 重新组合：确保保留扩展名
+            safe_filename = f"{base_name}{ext}"
+            speaker2_audio_path = os.path.join(UPLOAD_DIR, f"{session_id}_speaker2_{safe_filename}")
+            audio_file.save(speaker2_audio_path)
+            logger.info(f"Speaker2 音频已保存: {speaker2_audio_path}")
+
+    # 定义 SSE 生成器
     def generate():
         """SSE 生成器"""
         try:
@@ -179,6 +266,12 @@ def generate_podcast():
 
             if speaker1_type == 'default':
                 speaker1_config["voice_name"] = speaker1_voice_name
+            elif speaker1_type == 'voice_id':
+                if speaker1_voice_id:
+                    speaker1_config["voice_id"] = speaker1_voice_id
+                else:
+                    yield f"data: {json.dumps({'type': 'error', 'message': 'Speaker1 选择 Voice ID 但未提供 voice_id'})}\n\n"
+                    return
             elif speaker1_type == 'custom':
                 if speaker1_audio_path:
                     speaker1_config["audio_file"] = speaker1_audio_path
@@ -192,6 +285,12 @@ def generate_podcast():
 
             if speaker2_type == 'default':
                 speaker2_config["voice_name"] = speaker2_voice_name
+            elif speaker2_type == 'voice_id':
+                if speaker2_voice_id:
+                    speaker2_config["voice_id"] = speaker2_voice_id
+                else:
+                    yield f"data: {json.dumps({'type': 'error', 'message': 'Speaker2 选择 Voice ID 但未提供 voice_id'})}\n\n"
+                    return
             elif speaker2_type == 'custom':
                 if speaker2_audio_path:
                     speaker2_config["audio_file"] = speaker2_audio_path
@@ -204,8 +303,25 @@ def generate_podcast():
             voices_result = voice_manager.prepare_voices(speaker1_config, speaker2_config, api_key=user_api_key)
 
             if not voices_result["success"]:
-                yield f"data: {json.dumps({'type': 'error', 'message': voices_result['error']})}\n\n"
-                return
+                # 检查是否是 voice_id 无效需要用户确认的情况
+                if voices_result.get("error") == "voice_id_invalid":
+                    # 发送需要用户确认的事件
+                    voice_id_data = {
+                        'type': 'voice_id_invalid',
+                        'message': voices_result.get('message'),
+                        'invalid_voice_ids': voices_result.get('invalid_voice_ids', [])
+                    }
+                    yield f"data: {json.dumps(voice_id_data)}\n\n"
+
+                    # 发送详细日志
+                    for log in voices_result["logs"]:
+                        yield f"data: {json.dumps({'type': 'log', 'message': log})}\n\n"
+
+                    return  # 停止生成，等待用户确认
+                else:
+                    # 其他错误，直接返回
+                    yield f"data: {json.dumps({'type': 'error', 'message': voices_result['error']})}\n\n"
+                    return
 
             # 发送音色准备日志
             for log in voices_result["logs"]:
@@ -216,18 +332,27 @@ def generate_podcast():
                 if trace_id:
                     yield f"data: {json.dumps({'type': 'trace_id', 'api': key, 'trace_id': trace_id})}\n\n"
 
-            speaker1_voice_id = voices_result["speaker1"]
-            speaker2_voice_id = voices_result["speaker2"]
-            logger.info(f"Speaker1 Voice ID: {speaker1_voice_id}")
-            logger.info(f"Speaker2 Voice ID: {speaker2_voice_id}")
+            # 获取最终使用的 Voice ID
+            final_speaker1_voice_id = voices_result["speaker1"]
+            final_speaker2_voice_id = voices_result["speaker2"]
+
+            # 检查是否真正使用了自定义 voice_id（而非降级后的默认音色）
+            # 使用 voice_manager 返回的字段，而不是基于原始选择类型
+            speaker1_is_custom_voice_id = voices_result.get("speaker1_used_custom", False)
+            speaker2_is_custom_voice_id = voices_result.get("speaker2_used_custom", False)
+
+            logger.info(f"Speaker1 Voice ID: {final_speaker1_voice_id}, 自定义: {speaker1_is_custom_voice_id}")
+            logger.info(f"Speaker2 Voice ID: {final_speaker2_voice_id}, 自定义: {speaker2_is_custom_voice_id}")
 
             # Step 3: 流式生成播客
             for event in podcast_generator.generate_podcast_stream(
                 content=merged_content,
-                speaker1_voice_id=speaker1_voice_id,
-                speaker2_voice_id=speaker2_voice_id,
+                speaker1_voice_id=final_speaker1_voice_id,
+                speaker2_voice_id=final_speaker2_voice_id,
                 session_id=session_id,
-                api_key=user_api_key
+                api_key=user_api_key,
+                speaker1_is_custom_voice_id=speaker1_is_custom_voice_id,
+                speaker2_is_custom_voice_id=speaker2_is_custom_voice_id
             ):
                 yield f"data: {json.dumps(event)}\n\n"
 

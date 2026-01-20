@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './PodcastGenerator.css';
 
 const PodcastGenerator = () => {
@@ -10,10 +10,12 @@ const PodcastGenerator = () => {
 
   const [speaker1Type, setSpeaker1Type] = useState('default');
   const [speaker1Voice, setSpeaker1Voice] = useState('mini');
+  const [speaker1VoiceId, setSpeaker1VoiceId] = useState('');
   const [speaker1Audio, setSpeaker1Audio] = useState(null);
 
   const [speaker2Type, setSpeaker2Type] = useState('default');
   const [speaker2Voice, setSpeaker2Voice] = useState('max');
+  const [speaker2VoiceId, setSpeaker2VoiceId] = useState('');
   const [speaker2Audio, setSpeaker2Audio] = useState(null);
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -33,8 +35,25 @@ const PodcastGenerator = () => {
   const [player0Url, setPlayer0Url] = useState('');
   const [player1Url, setPlayer1Url] = useState('');
 
-  // URL 解析警告
-  const [urlWarning, setUrlWarning] = useState(null);  // {message: string, error_code: string}
+  // Voice ID 无效确认弹窗
+  const [showVoiceIdModal, setShowVoiceIdModal] = useState(false);
+  const [voiceIdModalData, setVoiceIdModalData] = useState(null);  // {invalid_voice_ids: [], message: ''}
+
+  // 用户选择使用默认音色的决定
+  const [useDefaultVoiceChoice, setUseDefaultVoiceChoice] = useState({});  // {speaker: true/false}
+
+  // API Key 配置状态
+  const [hasEnvApiKey, setHasEnvApiKey] = useState(false);
+
+  // API Key 缺失弹窗
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
+  // 输入内容缺失弹窗
+  const [showInputMissingModal, setShowInputMissingModal] = useState(false);
+
+  // URL 解析警告弹窗
+  const [showUrlWarningModal, setShowUrlWarningModal] = useState(false);
+  const [urlWarningData, setUrlWarningData] = useState(null);
 
   const audioRef0 = useRef(null);
   const audioRef1 = useRef(null);
@@ -43,6 +62,22 @@ const PodcastGenerator = () => {
   // 开发环境通过 package.json 的 proxy 配置代理到 http://localhost:5001
   // 生产环境通过 Nginx 反向代理到后端服务
   const API_URL = process.env.REACT_APP_API_URL || '';
+
+  // 检查后端配置状态
+  useEffect(() => {
+    const checkConfig = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/check-config`);
+        const data = await response.json();
+        setHasEnvApiKey(data.has_env_api_key);
+      } catch (error) {
+        console.error('检查配置状态失败:', error);
+        setHasEnvApiKey(false);
+      }
+    };
+
+    checkConfig();
+  }, [API_URL]);
 
   // 处理文件上传
   const handlePdfChange = (e) => {
@@ -57,6 +92,16 @@ const PodcastGenerator = () => {
   const handleSpeaker1AudioChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // 验证文件扩展名
+      const fileName = file.name.toLowerCase();
+      const validExtensions = ['.mp3', '.wav', '.m4a', '.flac', '.ogg'];
+      const hasValidExt = validExtensions.some(ext => fileName.endsWith(ext));
+
+      if (!hasValidExt) {
+        alert(`不支持的文件格式！请选择以下格式的音频文件：${validExtensions.join(', ')}`);
+        e.target.value = ''; // 清空选择
+        return;
+      }
       setSpeaker1Audio(file);
     }
   };
@@ -64,6 +109,16 @@ const PodcastGenerator = () => {
   const handleSpeaker2AudioChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // 验证文件扩展名
+      const fileName = file.name.toLowerCase();
+      const validExtensions = ['.mp3', '.wav', '.m4a', '.flac', '.ogg'];
+      const hasValidExt = validExtensions.some(ext => fileName.endsWith(ext));
+
+      if (!hasValidExt) {
+        alert(`不支持的文件格式！请选择以下格式的音频文件：${validExtensions.join(', ')}`);
+        e.target.value = ''; // 清空选择
+        return;
+      }
       setSpeaker2Audio(file);
     }
   };
@@ -152,14 +207,20 @@ const PodcastGenerator = () => {
 
   // 生成播客
   const handleGenerate = async () => {
-    // 验证输入
+    // 验证输入 - API Key
     if (!apiKey.trim()) {
-      alert('请输入 MiniMax API Key');
-      return;
+      if (hasEnvApiKey) {
+        // 后端已配置环境变量 API Key，允许前端留空
+        console.log('使用后端环境变量的 API Key');
+      } else {
+        // 前后端都没有 API Key，弹窗提醒
+        setShowApiKeyModal(true);
+        return;
+      }
     }
 
     if (!textInput && !urlInput && !pdfFile) {
-      alert('请至少提供一种输入内容（文本/网址/PDF）');
+      setShowInputMissingModal(true);
       return;
     }
 
@@ -173,7 +234,6 @@ const PodcastGenerator = () => {
     setPlayer0Url('');
     setPlayer1Url('');
     setActivePlayer(0);
-    setUrlWarning(null);
     setIsGenerating(true);
 
     // 构建 FormData
@@ -186,6 +246,8 @@ const PodcastGenerator = () => {
     formData.append('speaker1_type', speaker1Type);
     if (speaker1Type === 'default') {
       formData.append('speaker1_voice_name', speaker1Voice);
+    } else if (speaker1Type === 'voice_id' && speaker1VoiceId.trim()) {
+      formData.append('speaker1_voice_id', speaker1VoiceId.trim());
     } else if (speaker1Audio) {
       formData.append('speaker1_audio', speaker1Audio);
     }
@@ -193,6 +255,8 @@ const PodcastGenerator = () => {
     formData.append('speaker2_type', speaker2Type);
     if (speaker2Type === 'default') {
       formData.append('speaker2_voice_name', speaker2Voice);
+    } else if (speaker2Type === 'voice_id' && speaker2VoiceId.trim()) {
+      formData.append('speaker2_voice_id', speaker2VoiceId.trim());
     } else if (speaker2Audio) {
       formData.append('speaker2_audio', speaker2Audio);
     }
@@ -328,21 +392,24 @@ const PodcastGenerator = () => {
         break;
 
       case 'url_parse_warning':
-        // URL 解析失败的警告，但不中断流程
+        // URL 解析失败的警告，弹窗提醒
         addLog(`⚠️ ${data.message}`);
-        setUrlWarning({
-          message: data.message,
-          error_code: data.error_code
-        });
-        if (data.error_code === '403') {
-          setProgress('网址解析遇到问题，但您可以继续使用其他输入方式');
-        }
+        setUrlWarningData(data);
+        setShowUrlWarningModal(true);
         break;
 
       case 'error':
         addLog(`❌ 错误: ${data.message}`);
         setIsGenerating(false);
         setProgress('');
+        break;
+
+      case 'voice_id_invalid':
+        // Voice ID 无效，需要用户确认
+        addLog(`❌ ${data.message}`);
+        setVoiceIdModalData(data);
+        setShowVoiceIdModal(true);
+        setIsGenerating(false);
         break;
 
       default:
@@ -441,6 +508,25 @@ const PodcastGenerator = () => {
               <label>
                 <input
                   type="radio"
+                  checked={speaker1Type === 'voice_id'}
+                  onChange={() => setSpeaker1Type('voice_id')}
+                />
+                Voice ID
+              </label>
+              {speaker1Type === 'voice_id' && (
+                <input
+                  type="text"
+                  placeholder="输入 MiniMax Voice ID"
+                  value={speaker1VoiceId}
+                  onChange={(e) => setSpeaker1VoiceId(e.target.value)}
+                  className="voice-id-input"
+                />
+              )}
+            </div>
+            <div className="radio-group">
+              <label>
+                <input
+                  type="radio"
                   checked={speaker1Type === 'custom'}
                   onChange={() => setSpeaker1Type('custom')}
                 />
@@ -485,6 +571,25 @@ const PodcastGenerator = () => {
               <label>
                 <input
                   type="radio"
+                  checked={speaker2Type === 'voice_id'}
+                  onChange={() => setSpeaker2Type('voice_id')}
+                />
+                Voice ID
+              </label>
+              {speaker2Type === 'voice_id' && (
+                <input
+                  type="text"
+                  placeholder="输入 MiniMax Voice ID"
+                  value={speaker2VoiceId}
+                  onChange={(e) => setSpeaker2VoiceId(e.target.value)}
+                  className="voice-id-input"
+                />
+              )}
+            </div>
+            <div className="radio-group">
+              <label>
+                <input
+                  type="radio"
                   checked={speaker2Type === 'custom'}
                   onChange={() => setSpeaker2Type('custom')}
                 />
@@ -518,26 +623,246 @@ const PodcastGenerator = () => {
         {isGenerating ? '🎙️ 生成中...' : '🚀 开始生成播客'}
       </button>
 
-      {/* URL 解析警告 */}
-      {urlWarning && (
-        <div className="warning-box">
-          <div className="warning-icon">⚠️</div>
-          <div className="warning-content">
-            <div className="warning-title">网址解析遇到问题</div>
-            <div className="warning-message">{urlWarning.message}</div>
-            {urlWarning.error_code === '403' && (
-              <div className="warning-suggestion">
-                💡 <strong>建议操作：</strong>
-                <br />
-                1. 打开该网址，复制页面中的文本内容
-                <br />
-                2. 粘贴到上方的"话题文本"输入框中
-                <br />
-                3. 点击"开始生成播客"继续
+      {/* Voice ID 无效确认弹窗 */}
+      {showVoiceIdModal && voiceIdModalData && (
+        <div className="modal-overlay">
+          <div className="modal-content window-modal">
+            <div className="modal-header">
+              <h2>⚠️ Voice ID 无效</h2>
+            </div>
+            <div className="modal-body">
+              <p className="modal-message">{voiceIdModalData.message}</p>
+
+              <div className="invalid-voice-list">
+                {voiceIdModalData.invalid_voice_ids.map((item, index) => (
+                  <div key={index} className="invalid-voice-item">
+                    <div className="invalid-voice-header">
+                      <strong>{item.speaker}</strong>
+                      <span className="invalid-badge">无效</span>
+                    </div>
+                    <div className="invalid-voice-details">
+                      <p><strong>输入的 Voice ID:</strong> <code>{item.voice_id}</code></p>
+                      <p><strong>原因:</strong> {item.reason}</p>
+                    </div>
+                    <div className="voice-choice-section">
+                      <label className="choice-option">
+                        <input
+                          type="radio"
+                          name={`choice_${item.speaker}`}
+                          checked={!useDefaultVoiceChoice[item.speaker]}
+                          onChange={() => {
+                            setUseDefaultVoiceChoice(prev => ({...prev, [item.speaker]: false}));
+                          }}
+                        />
+                        <span>修改 Voice ID（输入正确的 Voice ID 后重新生成）</span>
+                      </label>
+                      <label className="choice-option">
+                        <input
+                          type="radio"
+                          name={`choice_${item.speaker}`}
+                          checked={useDefaultVoiceChoice[item.speaker]}
+                          onChange={() => {
+                            setUseDefaultVoiceChoice(prev => ({...prev, [item.speaker]: true}));
+                          }}
+                        />
+                        <span>使用默认音色 <strong>{item.default_voice_name}</strong></span>
+                      </label>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="modal-btn secondary"
+                onClick={() => {
+                  setShowVoiceIdModal(false);
+                  setVoiceIdModalData(null);
+                  setUseDefaultVoiceChoice({});
+                }}
+              >
+                取消
+              </button>
+              <button
+                className="modal-btn primary"
+                onClick={() => {
+                  // 处理用户的选择
+                  const choices = voiceIdModalData.invalid_voice_ids.map(item => ({
+                    speaker: item.speaker,
+                    useDefault: useDefaultVoiceChoice[item.speaker] || false,
+                    defaultVoiceId: item.default_voice_id,
+                    defaultVoiceName: item.default_voice_name
+                  }));
+
+                  // 如果所有都选择使用默认音色，直接应用
+                  const allChooseDefault = choices.every(c => c.useDefault);
+
+                  if (allChooseDefault) {
+                    // 应用默认音色
+                    choices.forEach(choice => {
+                      if (choice.speaker === 'Speaker1') {
+                        setSpeaker1Type('default');
+                        setSpeaker1Voice(choice.defaultVoiceName.includes('女') ? 'mini' : 'max');
+                        setSpeaker1VoiceId('');
+                      } else {
+                        setSpeaker2Type('default');
+                        setSpeaker2Voice(choice.defaultVoiceName.includes('女') ? 'mini' : 'max');
+                        setSpeaker2VoiceId('');
+                      }
+                    });
+
+                    addLog('ℹ️ 已切换到默认音色，点击"开始生成播客"继续');
+                  } else {
+                    // 有选择修改的，清空无效的 voice_id 并提示用户
+                    choices.forEach(choice => {
+                      if (!choice.useDefault) {
+                        if (choice.speaker === 'Speaker1') {
+                          setSpeaker1VoiceId('');
+                          addLog(`ℹ️ ${choice.speaker} 的 Voice ID 已清空，请输入正确的 Voice ID 后重新生成`);
+                        } else {
+                          setSpeaker2VoiceId('');
+                          addLog(`ℹ️ ${choice.speaker} 的 Voice ID 已清空，请输入正确的 Voice ID 后重新生成`);
+                        }
+                      } else {
+                        // 使用默认音色的也应用
+                        if (choice.speaker === 'Speaker1') {
+                          setSpeaker1Type('default');
+                          setSpeaker1Voice(choice.defaultVoiceName.includes('女') ? 'mini' : 'max');
+                          setSpeaker1VoiceId('');
+                        } else {
+                          setSpeaker2Type('default');
+                          setSpeaker2Voice(choice.defaultVoiceName.includes('女') ? 'mini' : 'max');
+                          setSpeaker2VoiceId('');
+                        }
+                      }
+                    });
+                  }
+
+                  // 关闭弹窗
+                  setShowVoiceIdModal(false);
+                  setVoiceIdModalData(null);
+                  setUseDefaultVoiceChoice({});
+                }}
+              >
+                确认选择
+              </button>
+            </div>
           </div>
-          <div className="close-warning" onClick={() => setUrlWarning(null)}>×</div>
+        </div>
+      )}
+
+      {/* API Key 缺失提醒弹窗 */}
+      {showApiKeyModal && (
+        <div className="modal-overlay">
+          <div className="modal-content window-modal">
+            <div className="modal-header">
+              <h2>⚠️ 缺少 API Key</h2>
+            </div>
+            <div className="modal-body">
+              <p className="modal-message">
+                前端未填写 API Key，且后端未配置环境变量 <code>MINIMAX_API_KEY</code>
+              </p>
+
+              <div className="invalid-voice-list">
+                <div className="invalid-voice-item">
+                  <div className="invalid-voice-header">
+                    <strong>解决方案</strong>
+                  </div>
+                  <div className="invalid-voice-details">
+                    <p><strong>方式一：</strong>在下方输入框中填写你的 MiniMax API Key</p>
+                    <p><strong>方式二：</strong>在服务器环境变量中配置 <code>MINIMAX_API_KEY</code></p>
+                  </div>
+                  <p className="input-description">
+                    API Key 可以在 <a href="https://www.minimaxi.com/" target="_blank" rel="noopener noreferrer">MiniMax 官网</a> 获取
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="modal-btn primary"
+                onClick={() => setShowApiKeyModal(false)}
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 输入内容缺失弹窗 */}
+      {showInputMissingModal && (
+        <div className="modal-overlay">
+          <div className="modal-content window-modal">
+            <div className="modal-header">
+              <h2>⚠️ 缺少输入内容</h2>
+            </div>
+            <div className="modal-body">
+              <p className="modal-message">
+                请至少提供一种输入内容（文本/网址/PDF）
+              </p>
+
+              <div className="invalid-voice-list">
+                <div className="invalid-voice-item">
+                  <div className="invalid-voice-header">
+                    <strong>可用的输入方式</strong>
+                  </div>
+                  <div className="invalid-voice-details">
+                    <p><strong>💬 话题文本：</strong>直接输入你想讨论的话题内容</p>
+                    <p><strong>🔗 网址链接：</strong>输入网址 URL，系统会自动解析网页内容</p>
+                    <p><strong>📄 上传 PDF：</strong>上传 PDF 文件，系统会提取文本内容</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="modal-btn primary"
+                onClick={() => setShowInputMissingModal(false)}
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* URL 解析警告弹窗 */}
+      {showUrlWarningModal && urlWarningData && (
+        <div className="modal-overlay">
+          <div className="modal-content window-modal">
+            <div className="modal-header">
+              <h2>⚠️ 网址解析遇到问题</h2>
+            </div>
+            <div className="modal-body">
+              <p className="modal-message">
+                {urlWarningData.message}
+              </p>
+
+              {urlWarningData.error_code === '403' && (
+                <div className="invalid-voice-list">
+                  <div className="invalid-voice-item">
+                    <div className="invalid-voice-header">
+                      <strong>建议操作</strong>
+                    </div>
+                    <div className="invalid-voice-details">
+                      <p>1. 打开该网址，复制页面中的文本内容</p>
+                      <p>2. 粘贴到上方的"话题文本"输入框中</p>
+                      <p>3. 点击"开始生成播客"继续</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="modal-btn primary"
+                onClick={() => setShowUrlWarningModal(false)}
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

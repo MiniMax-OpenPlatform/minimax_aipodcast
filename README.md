@@ -135,11 +135,9 @@ minimax_aipodcast/
 │   │   └── index.js
 │   └── package.json
 ├── start.sh                      # 启动脚本
-├── deploy.sh                     # 生产部署脚本
 ├── requirements.txt              # Python 依赖
 ├── 快速开始.md                    # 快速入门指南
 ├── 使用指南.md                    # 详细使用文档
-├── DEPLOYMENT.md                 # 部署指南
 └── README.md                     # 项目说明
 ```
 

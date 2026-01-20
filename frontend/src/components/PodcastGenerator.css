@@ -162,6 +162,23 @@
   width: 100%;
 }
 
+.voice-id-input {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid #EBEBEB;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 100%;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px;
+  transition: border-color 0.2s;
+}
+
+.voice-id-input:focus {
+  outline: none;
+  border-color: #FF5A5F;
+}
+
 /* 生成按钮 */
 .generate-btn {
   width: 100%;
@@ -424,6 +441,180 @@
 .close-warning:hover {
   color: #FF5A5F;
 }
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.window-modal .modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #EBEBEB;
+  background: #FFF5F5;
+  border-radius: 12px 12px 0 0;
+}
+
+.window-modal .modal-header h2 {
+  color: #C1351B;
+  margin: 0;
+}
+
+.window-modal .modal-body {
+  padding: 24px;
+}
+
+.modal-message {
+  font-size: 16px;
+  color: #484848;
+  margin-bottom: 20px;
+}
+
+.invalid-voice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.invalid-voice-item {
+  background: #F7F7F7;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 4px solid #FF5A5F;
+}
+
+.invalid-voice-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.invalid-voice-header strong {
+  font-size: 16px;
+  color: #484848;
+}
+
+.invalid-badge {
+  background: #FF5A5F;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.invalid-voice-details {
+  margin-bottom: 16px;
+}
+
+.invalid-voice-details p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #767676;
+}
+
+.invalid-voice-details code {
+  background: #EAEAEA;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  color: #C1351B;
+  word-break: break-all;
+}
+
+.voice-choice-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.choice-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #EBEBEB;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.choice-option:hover {
+  border-color: #FF5A5F;
+  background: #FFF5F5;
+}
+
+.choice-option input[type="radio"] {
+  margin-top: 2px;
+  accent-color: #FF5A5F;
+}
+
+.choice-option span {
+  font-size: 14px;
+  color: #484848;
+  line-height: 1.5;
+}
+
+.modal-footer {
+  padding: 20px 24px;
+  border-top: 1px solid #EBEBEB;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #F7F7F7;
+  border-radius: 0 0 12px 12px;
+}
+
+.modal-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-btn.secondary {
+  background: white;
+  border: 1px solid #EBEBEB;
+  color: #767676;
+}
+
+.modal-btn.secondary:hover {
+  background: #F7F7F7;
+}
+
+.modal-btn.primary {
+  background: #FF5A5F;
+  border: none;
+  color: white;
+}
+
+.modal-btn.primary:hover {
+  background: #E74C4D;
+}
+
 
 /* 响应式 */
 @media (max-width: 768px) {

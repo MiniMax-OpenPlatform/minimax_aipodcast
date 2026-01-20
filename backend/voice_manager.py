@@ -198,8 +198,9 @@ class VoiceManager:
         Args:
             speaker1_config: Speaker1 配置
                 {
-                    "type": "default" | "custom",
+                    "type": "default" | "custom" | "voice_id",
                     "voice_name": "mini" | "max" (default 时使用),
+                    "voice_id": "xxx" (voice_id 时使用),
                     "audio_file": "path/to/audio.wav" (custom 时使用)
                 }
             speaker2_config: Speaker2 配置（格式同上）
@@ -214,6 +215,24 @@ class VoiceManager:
             "trace_ids": {}
         }
 
+        # 先查询所有可用的音色列表（用于校验自定义 voice_id）
+        logger.info("开始查询可用音色列表...")
+        available_voices_result = minimax_client.get_available_voices(voice_type="all", api_key=api_key)
+        available_voice_ids = set()
+
+        if available_voices_result["success"]:
+            available_voice_ids = set(available_voices_result.get("voice_ids", []))
+            results["trace_ids"]["get_available_voices"] = available_voices_result.get("trace_id")
+            logger.info(f"查询到 {len(available_voice_ids)} 个可用音色")
+            results["logs"].append(f"ℹ️  已查询到 {len(available_voice_ids)} 个可用音色")
+        else:
+            # 查询失败，记录警告但继续（后续会用 TTS 实际尝试）
+            logger.warning(f"查询可用音色列表失败: {available_voices_result.get('message')}")
+            results["logs"].append(f"⚠️  查询可用音色列表失败，将在实际合成时验证 voice_id")
+
+        # 记录需要用户确认的无效 voice_id
+        invalid_voice_ids = []  # [{speaker, voice_id, reason, default_voice_id, default_voice_name}]
+
         # 准备 Speaker1 音色
         if speaker1_config["type"] == "default":
             voice_name = speaker1_config.get("voice_name", "mini")
@@ -224,6 +243,38 @@ class VoiceManager:
             else:
                 results["logs"].append(f"错误: {voice_info['error']}")
                 return {"success": False, "error": voice_info['error']}
+
+        elif speaker1_config["type"] == "voice_id":
+            voice_id = speaker1_config.get("voice_id", "").strip()
+            if not voice_id:
+                results["logs"].append(f"错误: Speaker1 未提供 voice_id")
+                return {"success": False, "error": "Speaker1 未提供 voice_id", "logs": results["logs"]}
+
+            # 校验 voice_id 格式
+            validation = self.validate_voice_id(voice_id)
+            if not validation["valid"]:
+                # Voice ID 格式无效，记录警告并要求用户确认
+                validation_errors = ', '.join(validation['errors'])
+                invalid_voice_ids.append({
+                    "speaker": "Speaker1",
+                    "voice_id": voice_id,
+                    "reason": f"Voice ID 格式无效：{validation_errors}",
+                    "default_voice_id": DEFAULT_VOICES["mini"]["voice_id"],
+                    "default_voice_name": "Mini（女声）"
+                })
+            elif available_voice_ids and voice_id not in available_voice_ids:
+                # 格式有效但不在可用列表中，记录警告并要求用户确认
+                invalid_voice_ids.append({
+                    "speaker": "Speaker1",
+                    "voice_id": voice_id,
+                    "reason": f"Voice ID '{voice_id}' 不在可用音色列表中，可能无效或已被删除",
+                    "default_voice_id": DEFAULT_VOICES["mini"]["voice_id"],
+                    "default_voice_name": "Mini（女声）"
+                })
+            else:
+                # 格式有效且在可用列表中（或无法查询列表），使用该 voice_id
+                results["speaker1"] = voice_id
+                results["logs"].append(f"✅ Speaker1 使用自定义 Voice ID: {voice_id}")
 
         elif speaker1_config["type"] == "custom":
             audio_file = speaker1_config.get("audio_file")
@@ -265,6 +316,38 @@ class VoiceManager:
                 results["logs"].append(f"错误: {voice_info['error']}")
                 return {"success": False, "error": voice_info['error']}
 
+        elif speaker2_config["type"] == "voice_id":
+            voice_id = speaker2_config.get("voice_id", "").strip()
+            if not voice_id:
+                results["logs"].append(f"错误: Speaker2 未提供 voice_id")
+                return {"success": False, "error": "Speaker2 未提供 voice_id", "logs": results["logs"]}
+
+            # 校验 voice_id 格式
+            validation = self.validate_voice_id(voice_id)
+            if not validation["valid"]:
+                # Voice ID 格式无效，记录警告并要求用户确认
+                validation_errors = ', '.join(validation['errors'])
+                invalid_voice_ids.append({
+                    "speaker": "Speaker2",
+                    "voice_id": voice_id,
+                    "reason": f"Voice ID 格式无效：{validation_errors}",
+                    "default_voice_id": DEFAULT_VOICES["max"]["voice_id"],
+                    "default_voice_name": "Max（男声）"
+                })
+            elif available_voice_ids and voice_id not in available_voice_ids:
+                # 格式有效但不在可用列表中，记录警告并要求用户确认
+                invalid_voice_ids.append({
+                    "speaker": "Speaker2",
+                    "voice_id": voice_id,
+                    "reason": f"Voice ID '{voice_id}' 不在可用音色列表中，可能无效或已被删除",
+                    "default_voice_id": DEFAULT_VOICES["max"]["voice_id"],
+                    "default_voice_name": "Max（男声）"
+                })
+            else:
+                # 格式有效且在可用列表中（或无法查询列表），使用该 voice_id
+                results["speaker2"] = voice_id
+                results["logs"].append(f"✅ Speaker2 使用自定义 Voice ID: {voice_id}")
+
         elif speaker2_config["type"] == "custom":
             audio_file = speaker2_config.get("audio_file")
             if not audio_file:
@@ -294,7 +377,27 @@ class VoiceManager:
                 else:
                     return {"success": False, "error": "无法使用默认音色作为降级方案", "logs": results["logs"]}
 
+        # 如果有无效的 voice_id，需要用户确认
+        if invalid_voice_ids:
+            results["success"] = False
+            results["error"] = "voice_id_invalid"
+            results["invalid_voice_ids"] = invalid_voice_ids
+            results["message"] = f"检测到 {len(invalid_voice_ids)} 个无效的 Voice ID，需要您确认如何处理"
+            results["logs"].append(f"❌ 检测到 {len(invalid_voice_ids)} 个无效的 Voice ID，需要用户确认")
+            return results
+
         results["success"] = True
+
+        # 记录是否真正使用了自定义 voice_id
+        results["speaker1_used_custom"] = (
+            speaker1_config["type"] == "voice_id" and
+            results["speaker1"] == speaker1_config.get("voice_id", "").strip()
+        )
+        results["speaker2_used_custom"] = (
+            speaker2_config["type"] == "voice_id" and
+            results["speaker2"] == speaker2_config.get("voice_id", "").strip()
+        )
+
         return results
 
 
